@@ -127,4 +127,8 @@ npm run db:seed
 
 # Inicie o projeto
 npm run dev
+
+# Usuário padrão para login
+- E-mail: admin@bmclub.com.br
+- Senha:  BMClub@2026
 ```
