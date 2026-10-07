@@ -1,0 +1,1 @@
+import { Sidebar } from './Sidebar'; export function Shell({children}:{children:React.ReactNode}){return <div className="min-h-screen flex"><Sidebar/><main className="flex-1 p-5 md:p-10 max-w-[1500px] mx-auto w-full">{children}</main></div>}

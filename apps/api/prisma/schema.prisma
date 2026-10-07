@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MEMBER
+  COMPANY
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  FINISHED
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  WAITLIST
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Company {
+  id String @id @default(cuid())
+  name String
+  document String? @unique
+  users User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  role UserRole @default(MEMBER)
+  companyId String?
+  company Company? @relation(fields:[companyId], references:[id])
+  registrations EventRegistration[]
+  reservations Reservation[]
+  refreshTokens RefreshToken[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model Guest {
+  id String @id @default(cuid())
+  name String
+  email String?
+  phone String?
+  registrationId String
+  registration EventRegistration @relation(fields:[registrationId], references:[id], onDelete:Cascade)
+}
+
+model Event {
+  id String @id @default(cuid())
+  title String
+  description String?
+  coverUrl String?
+  location String?
+  startsAt DateTime
+  endsAt DateTime
+  capacity Int
+  status EventStatus @default(DRAFT)
+  registrations EventRegistration[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventRegistration {
+  id String @id @default(cuid())
+  eventId String
+  userId String
+  seats Int @default(1)
+  status RegistrationStatus @default(CONFIRMED)
+  event Event @relation(fields:[eventId], references:[id], onDelete:Cascade)
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  guests Guest[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([eventId,userId])
+}
+
+model Space {
+  id String @id @default(cuid())
+  name String @unique
+  description String?
+  capacity Int
+  active Boolean @default(true)
+  reservations Reservation[]
+  blockedPeriods BlockedPeriod[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Reservation {
+  id String @id @default(cuid())
+  spaceId String
+  userId String
+  startsAt DateTime
+  endsAt DateTime
+  guests Int @default(1)
+  notes String?
+  status ReservationStatus @default(CONFIRMED)
+  space Space @relation(fields:[spaceId], references:[id])
+  user User @relation(fields:[userId], references:[id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([spaceId, startsAt, endsAt])
+}
+
+model BlockedPeriod {
+  id String @id @default(cuid())
+  spaceId String
+  startsAt DateTime
+  endsAt DateTime
+  reason String?
+  space Space @relation(fields:[spaceId], references:[id], onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@index([spaceId, startsAt, endsAt])
+}
