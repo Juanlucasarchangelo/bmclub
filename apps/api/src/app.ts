@@ -7,6 +7,7 @@ import { eventsRouter } from './modules/events/routes.js';
 import { spacesRouter } from './modules/spaces/routes.js';
 import { reservationsRouter } from './modules/reservations/routes.js';
 import { adminRouter } from './modules/admin/routes.js';
+import { atmosRouter } from './modules/atmos/routes.js';
 
 export const app = express();
 
@@ -89,3 +90,5 @@ app.use('/spaces', spacesRouter);
 app.use('/reservations', reservationsRouter);
 
 app.use('/admin', adminRouter);
+
+app.use('/atmos', atmosRouter);
