@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -32,113 +33,146 @@ enum ReservationStatus {
   CANCELLED
 }
 
+enum SpaceCategory {
+  ATMOS
+  SALA
+}
+
 model Company {
-  id String @id @default(cuid())
-  name String
-  document String? @unique
-  users User[]
+  id        String   @id @default(cuid())
+  name      String
+  document  String?  @unique
+  users     User[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model User {
-  id String @id @default(cuid())
-  name String
-  email String @unique
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
   passwordHash String
-  role UserRole @default(MEMBER)
+
+  role      UserRole @default(MEMBER)
+  active    Boolean  @default(true)
+  deletedAt DateTime?
+
   companyId String?
-  company Company? @relation(fields:[companyId], references:[id])
+  company   Company? @relation(fields: [companyId], references: [id])
+
   registrations EventRegistration[]
-  reservations Reservation[]
+  reservations  Reservation[]
   refreshTokens RefreshToken[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([role, active])
+  @@index([companyId])
 }
 
 model RefreshToken {
-  id String @id @default(cuid())
-  tokenHash String @unique
-  userId String
-  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 }
 
 model Guest {
-  id String @id @default(cuid())
-  name String
-  email String?
-  phone String?
+  id             String            @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
   registrationId String
-  registration EventRegistration @relation(fields:[registrationId], references:[id], onDelete:Cascade)
+  registration   EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 }
 
 model Event {
-  id String @id @default(cuid())
-  title String
+  id          String      @id @default(cuid())
+  title       String
   description String?
-  coverUrl String?
-  location String?
-  startsAt DateTime
-  endsAt DateTime
-  capacity Int
-  status EventStatus @default(DRAFT)
+  coverUrl    String?
+  location    String?
+  startsAt    DateTime
+  endsAt      DateTime
+  capacity    Int
+  status      EventStatus @default(DRAFT)
+
   registrations EventRegistration[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model EventRegistration {
-  id String @id @default(cuid())
+  id      String             @id @default(cuid())
   eventId String
-  userId String
-  seats Int @default(1)
-  status RegistrationStatus @default(CONFIRMED)
-  event Event @relation(fields:[eventId], references:[id], onDelete:Cascade)
-  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  userId  String
+  seats   Int                @default(1)
+  status  RegistrationStatus @default(CONFIRMED)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   guests Guest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  @@unique([eventId,userId])
+
+  @@unique([eventId, userId])
 }
 
 model Space {
-  id String @id @default(cuid())
-  name String @unique
+  id          String        @id @default(cuid())
+  name        String        @unique
   description String?
-  capacity Int
-  active Boolean @default(true)
-  reservations Reservation[]
+  capacity    Int
+  category    SpaceCategory @default(SALA)
+  active      Boolean       @default(true)
+
+  reservations  Reservation[]
   blockedPeriods BlockedPeriod[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([category, active])
 }
 
 model Reservation {
-  id String @id @default(cuid())
-  spaceId String
-  userId String
+  id       String @id @default(cuid())
+  spaceId  String
+  userId   String
   startsAt DateTime
-  endsAt DateTime
-  guests Int @default(1)
-  notes String?
+  endsAt   DateTime
+  guests   Int    @default(1)
+  notes    String?
+
   status ReservationStatus @default(CONFIRMED)
-  space Space @relation(fields:[spaceId], references:[id])
-  user User @relation(fields:[userId], references:[id])
+
+  space Space @relation(fields: [spaceId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@index([spaceId, startsAt, endsAt])
+  @@index([userId])
 }
 
 model BlockedPeriod {
-  id String @id @default(cuid())
-  spaceId String
+  id       String   @id @default(cuid())
+  spaceId  String
   startsAt DateTime
-  endsAt DateTime
-  reason String?
-  space Space @relation(fields:[spaceId], references:[id], onDelete:Cascade)
+  endsAt   DateTime
+  reason   String?
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
+
   @@index([spaceId, startsAt, endsAt])
 }
