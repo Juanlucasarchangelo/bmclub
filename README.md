@@ -3,7 +3,7 @@
   <h1>📅 BMClub Brasil</h1>
   <p>Plataforma de gerenciamento de eventos, reservas e experiências exclusivas para membros e empresas.</p>
 
-  <a href="https://www.instagram.com/bmclubbrasil/" target="_blank" rel="noopener noreferrer">
+  <a href="https://www.instagram.com/juanarchangelo/" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/static/v1?message=Instagram&logo=instagram&label=&color=E4405F&logoColor=white&labelColor=&style=for-the-badge" height="35" alt="instagram logo"/>
   </a>
 </div>
