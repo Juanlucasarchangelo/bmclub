@@ -6,12 +6,6 @@ import { requireAuth } from '../../middlewares/auth.js';
 
 export const atmosRouter = Router();
 
-const ESPACOS = [
-    { name: 'Balcão', capacity: 2 },
-    { name: 'Mesa', capacity: 10 },
-    { name: 'Privado', capacity: 30 },
-];
-
 const HORA_ABERTURA = 9 * 60;
 const HORA_FECHAMENTO = 21 * 60;
 
@@ -30,11 +24,8 @@ function minutos(hora: string) {
     return h * 60 + m;
 }
 
-function converterData(
-    data: string,
-    hora: string
-) {
-    // Horário local de São Paulo (UTC-03:00)
+function converterData(data: string, hora: string) {
+    // Horário local de São Paulo (UTC-03:00).
     return new Date(`${data}T${hora}:00-03:00`);
 }
 
@@ -51,14 +42,14 @@ function validarPeriodo(
 
     if (
         Number.isNaN(inicioData.getTime()) ||
-        Number.isNaN(fimData.getTime()) ||
-        inicioData.toISOString().slice(0, 10) === ''
+        Number.isNaN(fimData.getTime())
     ) {
         return 'Data ou horário inválido.';
     }
 
-    // Verificar se a data realmente existe
+    // Verifica se a data realmente existe.
     const partes = data.split('-').map(Number);
+
     const dataUTC = new Date(
         Date.UTC(partes[0], partes[1] - 1, partes[2])
     );
@@ -71,7 +62,7 @@ function validarPeriodo(
         return 'Data inválida.';
     }
 
-    // Domingo = 0
+    // Domingo = 0.
     if (dataUTC.getUTCDay() === 0) {
         return 'O Atmos Club não aceita reservas aos domingos.';
     }
@@ -94,69 +85,56 @@ function validarPeriodo(
     return null;
 }
 
+// Localiza qualquer espaço ou sala ativa cadastrada.
 async function localizarEspaco(id: string) {
-    const espaco = await prisma.space.findUnique({
-        where: { id },
+    return prisma.space.findFirst({
+        where: {
+            id,
+            active: true,
+        },
     });
-
-    if (!espaco || !espaco.active) {
-        return null;
-    }
-
-    const permitido = ESPACOS.find(
-        (item) => item.name === espaco.name
-    );
-
-    if (!permitido) {
-        return null;
-    }
-
-    return {
-        ...espaco,
-        capacity: permitido.capacity,
-    };
 }
 
+// ======================================================
 // GET /atmos/espacos
+// Lista TODOS os espaços e salas ativos da tabela Space.
+// ======================================================
+
 atmosRouter.get('/espacos', async (_req, res) => {
     try {
         const espacos = await prisma.space.findMany({
             where: {
                 active: true,
-                name: {
-                    in: ESPACOS.map((e) => e.name),
-                },
             },
             select: {
                 id: true,
                 name: true,
                 description: true,
+                capacity: true,
+            },
+            orderBy: {
+                name: 'asc',
             },
         });
 
-        return res.json(
-            ESPACOS.flatMap((config) => {
-                const encontrado = espacos.find(
-                    (e) => e.name === config.name
-                );
-
-                return encontrado
-                    ? [{
-                        ...encontrado,
-                        capacity: config.capacity,
-                    }]
-                    : [];
-            })
-        );
+        return res.json(espacos);
     } catch (error) {
-        console.error(error);
+        console.error(
+            'Erro ao carregar espaços Atmos:',
+            error
+        );
+
         return res.status(500).json({
             message: 'Erro ao carregar espaços Atmos.',
         });
     }
 });
 
+// ======================================================
 // GET /atmos/disponibilidade?spaceId=...&data=YYYY-MM-DD
+// Consulta reservas e bloqueios de qualquer sala/espaço.
+// ======================================================
+
 atmosRouter.get('/disponibilidade', async (req, res) => {
     const entrada = z.object({
         spaceId: z.string().min(1),
@@ -171,15 +149,17 @@ atmosRouter.get('/disponibilidade', async (req, res) => {
 
     try {
         const { spaceId, data } = entrada.data;
+
         const espaco = await localizarEspaco(spaceId);
 
         if (!espaco) {
             return res.status(404).json({
-                message: 'Espaço Atmos não encontrado.',
+                message: 'Espaço ou sala não encontrado.',
             });
         }
 
         const inicioDia = converterData(data, '00:00');
+
         const fimDia = new Date(
             inicioDia.getTime() + 24 * 60 * 60 * 1000
         );
@@ -188,20 +168,31 @@ atmosRouter.get('/disponibilidade', async (req, res) => {
             prisma.reservation.findMany({
                 where: {
                     spaceId,
-                    status: { not: 'CANCELLED' },
-                    startsAt: { lt: fimDia },
-                    endsAt: { gt: inicioDia },
+                    status: {
+                        not: 'CANCELLED',
+                    },
+                    startsAt: {
+                        lt: fimDia,
+                    },
+                    endsAt: {
+                        gt: inicioDia,
+                    },
                 },
                 select: {
                     startsAt: true,
                     endsAt: true,
                 },
             }),
+
             prisma.blockedPeriod.findMany({
                 where: {
                     spaceId,
-                    startsAt: { lt: fimDia },
-                    endsAt: { gt: inicioDia },
+                    startsAt: {
+                        lt: fimDia,
+                    },
+                    endsAt: {
+                        gt: inicioDia,
+                    },
                 },
                 select: {
                     startsAt: true,
@@ -224,14 +215,22 @@ atmosRouter.get('/disponibilidade', async (req, res) => {
             })),
         });
     } catch (error) {
-        console.error(error);
+        console.error(
+            'Erro ao consultar disponibilidade:',
+            error
+        );
+
         return res.status(500).json({
             message: 'Erro ao consultar disponibilidade.',
         });
     }
 });
 
+// ======================================================
 // POST /atmos/reservar
+// Permite reservar qualquer espaço ou sala ativa.
+// ======================================================
+
 atmosRouter.post('/reservar', requireAuth, async (req, res) => {
     const entrada = z.object({
         spaceId: z.string().min(1),
@@ -275,54 +274,70 @@ atmosRouter.post('/reservar', requireAuth, async (req, res) => {
     try {
         const resultado = await prisma.$transaction(
             async (tx) => {
-                // Bloqueia a linha do espaço até a transação terminar.
-                // Assim, reservas simultâneas do mesmo espaço
-                // são processadas em sequência no MySQL.
+                // Bloqueia a linha do espaço durante a transação
+                // para evitar reservas simultâneas conflitantes.
+                // Esta consulta utiliza MySQL, como no código original.
+
                 const linhas = await tx.$queryRaw<
                     Array<{ id: string }>
                 >`
-          SELECT id
-          FROM Space
-          WHERE id = ${dados.spaceId}
-          FOR UPDATE
-        `;
+                    SELECT id
+                    FROM Space
+                    WHERE id = ${dados.spaceId}
+                    FOR UPDATE
+                `;
 
                 if (!linhas.length) {
                     throw new Error('SPACE');
                 }
 
                 const espaco = await tx.space.findUnique({
-                    where: { id: dados.spaceId },
+                    where: {
+                        id: dados.spaceId,
+                    },
                 });
 
-                const configuracao = ESPACOS.find(
-                    (item) => item.name === espaco?.name
-                );
-
-                if (!espaco?.active || !configuracao) {
+                // Não há mais uma lista fixa de espaços.
+                // Qualquer registro ativo pode ser reservado.
+                if (!espaco?.active) {
                     throw new Error('SPACE');
                 }
 
-                if (dados.guests > configuracao.capacity) {
+                // Usa a capacidade cadastrada no banco.
+                if (dados.guests > espaco.capacity) {
                     throw new Error('CAPACITY');
                 }
 
-                const conflito = await tx.reservation.findFirst({
-                    where: {
-                        spaceId: dados.spaceId,
-                        status: { not: 'CANCELLED' },
-                        startsAt: { lt: endsAt },
-                        endsAt: { gt: startsAt },
-                    },
-                });
+                // Verifica reservas conflitantes.
+                const conflito =
+                    await tx.reservation.findFirst({
+                        where: {
+                            spaceId: dados.spaceId,
+                            status: {
+                                not: 'CANCELLED',
+                            },
+                            startsAt: {
+                                lt: endsAt,
+                            },
+                            endsAt: {
+                                gt: startsAt,
+                            },
+                        },
+                    });
 
-                const bloqueio = await tx.blockedPeriod.findFirst({
-                    where: {
-                        spaceId: dados.spaceId,
-                        startsAt: { lt: endsAt },
-                        endsAt: { gt: startsAt },
-                    },
-                });
+                // Verifica períodos bloqueados.
+                const bloqueio =
+                    await tx.blockedPeriod.findFirst({
+                        where: {
+                            spaceId: dados.spaceId,
+                            startsAt: {
+                                lt: endsAt,
+                            },
+                            endsAt: {
+                                gt: startsAt,
+                            },
+                        },
+                    });
 
                 if (conflito || bloqueio) {
                     throw new Error('CONFLICT');
@@ -350,7 +365,10 @@ atmosRouter.post('/reservar', requireAuth, async (req, res) => {
             reserva: resultado,
         });
     } catch (error) {
-        console.error('Erro na reserva Atmos:', error);
+        console.error(
+            'Erro na reserva Atmos:',
+            error
+        );
 
         const codigo =
             error instanceof Error ? error.message : '';
@@ -369,7 +387,7 @@ atmosRouter.post('/reservar', requireAuth, async (req, res) => {
 
         if (codigo === 'SPACE') {
             return res.status(404).json({
-                message: 'Espaço indisponível.',
+                message: 'Espaço ou sala indisponível.',
             });
         }
 

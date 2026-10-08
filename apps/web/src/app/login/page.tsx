@@ -91,7 +91,7 @@ export default function Login() {
              * Login concluído.
              * Envia para Eventos.
              */
-            router.push('/eventos');
+            router.replace('/inicio');
 
             router.refresh();
         } catch (error) {

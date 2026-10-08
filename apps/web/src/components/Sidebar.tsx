@@ -23,7 +23,7 @@ type SidebarProps = {
 };
 
 const links = [
-  { href: '/', label: 'Início', Icon: LayoutDashboard },
+  { href: '/inicio', label: 'Início', Icon: LayoutDashboard },
   { href: '/eventos', label: 'Eventos', Icon: CalendarDays },
   { href: '/reservas', label: 'Minhas reservas', Icon: TicketCheck },
   { href: '/atmos', label: 'ATMOS', Icon: Clapperboard },
@@ -107,18 +107,17 @@ export function Sidebar({
             href === '/'
               ? pathname === '/'
               : pathname === href ||
-                pathname.startsWith(`${href}/`);
+              pathname.startsWith(`${href}/`);
 
           return (
             <Link
               key={href}
               href={href}
               onClick={onNavigate}
-              className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                ativo
+              className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${ativo
                   ? 'border border-[#DBB13F]/30 bg-[#DBB13F]/10 text-[#DBB13F]'
                   : 'text-white/65 hover:bg-white/5 hover:text-[#DBB13F]'
-              }`}
+                }`}
             >
               <Icon size={18} />
               {label}

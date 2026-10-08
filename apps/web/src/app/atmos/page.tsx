@@ -1,9 +1,15 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type PointerEvent as ReactPointerEvent,
+} from 'react';
 
+import Link from 'next/link';
 import { Shell } from '@/components/Shell';
 import { Card } from '@/components/Card';
 
@@ -60,6 +66,26 @@ function horarioLocal(iso: string) {
 }
 
 export default function Atmos() {
+    // ==================================================
+    // ESTADOS
+    // ==================================================
+
+    const carrosselRef = useRef<HTMLDivElement>(null);
+
+    const arrastoRef = useRef({
+        pressionado: false,
+        inicioX: 0,
+        scrollInicial: 0,
+        arrastou: false,
+    });
+
+    const ignorarCliqueRef = useRef(false);
+
+    const [arrastando, setArrastando] = useState(false);
+    const [podeVoltar, setPodeVoltar] = useState(false);
+    const [podeAvancar, setPodeAvancar] = useState(false);
+    const [progresso, setProgresso] = useState(0);
+
     const [espacos, setEspacos] = useState<Espaco[]>([]);
     const [espacoId, setEspacoId] = useState('');
 
@@ -70,27 +96,196 @@ export default function Atmos() {
     const [observacoes, setObservacoes] = useState('');
 
     const [ocupados, setOcupados] = useState<Intervalo[]>([]);
+
     const [loading, setLoading] = useState(true);
     const [consultando, setConsultando] = useState(false);
     const [salvando, setSalvando] = useState(false);
+
     const [erro, setErro] = useState('');
     const [sucesso, setSucesso] = useState('');
 
     const [ano, mes] = data.split('-').map(Number);
-    const espaco = espacos.find((e) => e.id === espacoId);
+
+    const espaco = espacos.find(
+        (item) => item.id === espacoId
+    );
+
+    // ==================================================
+    // CARROSSEL - ESTADO E PROGRESSO
+    // ==================================================
+
+    const atualizarCarrossel = useCallback(() => {
+        const elemento = carrosselRef.current;
+
+        if (!elemento) return;
+
+        const maxScroll = Math.max(
+            0,
+            elemento.scrollWidth - elemento.clientWidth
+        );
+
+        setPodeVoltar(elemento.scrollLeft > 3);
+
+        setPodeAvancar(
+            elemento.scrollLeft < maxScroll - 3
+        );
+
+        setProgresso(
+            maxScroll > 0
+                ? Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        (elemento.scrollLeft / maxScroll) * 100
+                    )
+                )
+                : 100
+        );
+    }, []);
+
+    function moverCarrossel(
+        direcao: 'anterior' | 'proximo'
+    ) {
+        const elemento = carrosselRef.current;
+
+        if (!elemento) return;
+
+        const card =
+            elemento.querySelector<HTMLElement>(
+                '[data-card-atmos]'
+            );
+
+        if (!card) return;
+
+        const estilos = window.getComputedStyle(elemento);
+
+        const gap =
+            parseFloat(estilos.columnGap) || 16;
+
+        const distancia =
+            card.getBoundingClientRect().width + gap;
+
+        elemento.scrollBy({
+            left:
+                direcao === 'proximo'
+                    ? distancia
+                    : -distancia,
+            behavior: 'smooth',
+        });
+    }
+
+    // ==================================================
+    // CARROSSEL - ARRASTE COM MOUSE
+    // ==================================================
+
+    function iniciarArrasto(
+        e: ReactPointerEvent<HTMLDivElement>
+    ) {
+        if (e.pointerType !== 'mouse') return;
+        if (e.button !== 0) return;
+
+        const elemento = carrosselRef.current;
+
+        if (!elemento) return;
+
+        ignorarCliqueRef.current = false;
+
+        arrastoRef.current = {
+            pressionado: true,
+            inicioX: e.clientX,
+            scrollInicial: elemento.scrollLeft,
+            arrastou: false,
+        };
+    }
+
+    function duranteArrasto(
+        e: ReactPointerEvent<HTMLDivElement>
+    ) {
+        if (!arrastoRef.current.pressionado) return;
+
+        const elemento = carrosselRef.current;
+
+        if (!elemento) return;
+
+        const distancia =
+            e.clientX - arrastoRef.current.inicioX;
+
+        if (Math.abs(distancia) > 5) {
+            arrastoRef.current.arrastou = true;
+            ignorarCliqueRef.current = true;
+            setArrastando(true);
+        }
+
+        if (arrastoRef.current.arrastou) {
+            e.preventDefault();
+
+            elemento.scrollLeft =
+                arrastoRef.current.scrollInicial -
+                distancia;
+        }
+    }
+
+    function terminarArrasto() {
+        arrastoRef.current.pressionado = false;
+        setArrastando(false);
+    }
+
+    function selecionarEspaco(item: Espaco) {
+        if (ignorarCliqueRef.current) {
+            ignorarCliqueRef.current = false;
+            return;
+        }
+
+        setEspacoId(item.id);
+        setPessoas(1);
+        setSucesso('');
+        setErro('');
+    }
+
+    useEffect(() => {
+        if (loading) return;
+
+        const elemento = carrosselRef.current;
+
+        if (!elemento) return;
+
+        atualizarCarrossel();
+
+        const observer = new ResizeObserver(() => {
+            atualizarCarrossel();
+        });
+
+        observer.observe(elemento);
+
+        return () => observer.disconnect();
+    }, [loading, espacos, atualizarCarrossel]);
+
+    // ==================================================
+    // CARREGAR ESPAÇOS E SALAS
+    // ==================================================
 
     useEffect(() => {
         async function carregar() {
+            setLoading(true);
+            setErro('');
+
             try {
                 const resposta = await fetch(
-                    `${API_URL}/atmos/espacos`
+                    `${API_URL}/atmos/espacos`,
+                    {
+                        cache: 'no-store',
+                    }
                 );
 
                 if (!resposta.ok) {
-                    throw new Error('Não foi possível carregar os espaços.');
+                    throw new Error(
+                        'Não foi possível carregar os espaços.'
+                    );
                 }
 
-                const lista: Espaco[] = await resposta.json();
+                const lista: Espaco[] =
+                    await resposta.json();
+
                 setEspacos(lista);
 
                 if (lista.length > 0) {
@@ -107,8 +302,12 @@ export default function Atmos() {
             }
         }
 
-        carregar();
+        void carregar();
     }, []);
+
+    // ==================================================
+    // CONSULTAR DISPONIBILIDADE
+    // ==================================================
 
     useEffect(() => {
         if (!espacoId || !data) return;
@@ -125,14 +324,25 @@ export default function Atmos() {
                     `${API_URL}/atmos/disponibilidade`
                 );
 
-                url.searchParams.set('spaceId', espacoId);
-                url.searchParams.set('data', data);
+                url.searchParams.set(
+                    'spaceId',
+                    espacoId
+                );
 
-                const resposta = await fetch(url.toString(), {
-                    cache: 'no-store',
-                });
+                url.searchParams.set(
+                    'data',
+                    data
+                );
 
-                const resultado = await resposta.json();
+                const resposta = await fetch(
+                    url.toString(),
+                    {
+                        cache: 'no-store',
+                    }
+                );
+
+                const resultado =
+                    await resposta.json();
 
                 if (!resposta.ok) {
                     throw new Error(
@@ -142,7 +352,9 @@ export default function Atmos() {
                 }
 
                 if (ativo) {
-                    setOcupados(resultado.intervalosOcupados || []);
+                    setOcupados(
+                        resultado.intervalosOcupados || []
+                    );
                 }
             } catch (error) {
                 if (ativo) {
@@ -153,16 +365,22 @@ export default function Atmos() {
                     );
                 }
             } finally {
-                if (ativo) setConsultando(false);
+                if (ativo) {
+                    setConsultando(false);
+                }
             }
         }
 
-        consultar();
+        void consultar();
 
         return () => {
             ativo = false;
         };
     }, [espacoId, data]);
+
+    // ==================================================
+    // CALENDÁRIO
+    // ==================================================
 
     const primeiroDia = new Date(
         Date.UTC(ano, mes - 1, 1)
@@ -172,52 +390,90 @@ export default function Atmos() {
         Date.UTC(ano, mes, 0)
     ).getUTCDate();
 
-    const mesNome = new Intl.DateTimeFormat('pt-BR', {
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-    }).format(new Date(Date.UTC(ano, mes - 1, 1)));
+    const mesNome = new Intl.DateTimeFormat(
+        'pt-BR',
+        {
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }
+    ).format(
+        new Date(Date.UTC(ano, mes - 1, 1))
+    );
 
     function mudarMes(diferenca: number) {
         const novaData = new Date(
-            Date.UTC(ano, mes - 1 + diferenca, 1)
+            Date.UTC(
+                ano,
+                mes - 1 + diferenca,
+                1
+            )
         );
 
-        const novoAno = novaData.getUTCFullYear();
-        const novoMes = novaData.getUTCMonth();
+        const novoAno =
+            novaData.getUTCFullYear();
 
-        const primeiro = dataISO(novoAno, novoMes, 1);
+        const novoMes =
+            novaData.getUTCMonth();
+
+        const primeiro = dataISO(
+            novoAno,
+            novoMes,
+            1
+        );
 
         setData(
-            primeiro < hojeSP() ? hojeSP() : primeiro
+            primeiro < hojeSP()
+                ? hojeSP()
+                : primeiro
         );
 
         setSucesso('');
     }
 
-    const inicioData = horarioParaData(data, inicio);
-    const fimData = horarioParaData(data, fim);
+    // ==================================================
+    // VALIDAÇÕES DA RESERVA
+    // ==================================================
 
-    const domingo = new Date(
-        `${data}T12:00:00Z`
-    ).getUTCDay() === 0;
+    const inicioData = horarioParaData(
+        data,
+        inicio
+    );
+
+    const fimData = horarioParaData(
+        data,
+        fim
+    );
+
+    const domingo =
+        new Date(
+            `${data}T12:00:00Z`
+        ).getUTCDay() === 0;
 
     const foraDoHorario =
         inicio < '09:00' ||
         fim > '21:00' ||
         fim <= inicio;
 
-    const passado = inicioData <= new Date();
+    const passado =
+        inicioData <= new Date();
 
-    const conflito = ocupados.some((intervalo) => {
-        const ocupadoInicio = new Date(intervalo.inicio);
-        const ocupadoFim = new Date(intervalo.fim);
+    const conflito = ocupados.some(
+        (intervalo) => {
+            const ocupadoInicio = new Date(
+                intervalo.inicio
+            );
 
-        return (
-            inicioData < ocupadoFim &&
-            fimData > ocupadoInicio
-        );
-    });
+            const ocupadoFim = new Date(
+                intervalo.fim
+            );
+
+            return (
+                inicioData < ocupadoFim &&
+                fimData > ocupadoInicio
+            );
+        }
+    );
 
     const disponivel =
         !!espaco &&
@@ -230,13 +486,21 @@ export default function Atmos() {
         !consultando &&
         !erro;
 
+    // ==================================================
+    // CONFIRMAR RESERVA
+    // ==================================================
+
     async function reservar() {
         if (!disponivel || !espaco) return;
 
-        const token = localStorage.getItem('bmclub_access');
+        const token = localStorage.getItem(
+            'bmclub_access'
+        );
 
         if (!token) {
-            setErro('Faça login para confirmar sua reserva.');
+            setErro(
+                'Faça login para confirmar sua reserva.'
+            );
             return;
         }
 
@@ -250,8 +514,10 @@ export default function Atmos() {
                 {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
+                        'Content-Type':
+                            'application/json',
+                        Authorization:
+                            `Bearer ${token}`,
                     },
                     body: JSON.stringify({
                         spaceId: espaco.id,
@@ -259,12 +525,14 @@ export default function Atmos() {
                         inicio,
                         fim,
                         guests: pessoas,
-                        notes: observacoes || undefined,
+                        notes:
+                            observacoes || undefined,
                     }),
                 }
             );
 
-            const resultado = await resposta.json();
+            const resultado =
+                await resposta.json();
 
             if (!resposta.ok) {
                 throw new Error(
@@ -273,14 +541,17 @@ export default function Atmos() {
                 );
             }
 
-            setSucesso('Reserva confirmada com sucesso!');
+            setSucesso(
+                'Reserva confirmada com sucesso!'
+            );
 
-            // Atualiza os horários ocupados imediatamente.
             setOcupados((anteriores) => [
                 ...anteriores,
                 {
-                    inicio: inicioData.toISOString(),
-                    fim: fimData.toISOString(),
+                    inicio:
+                        inicioData.toISOString(),
+                    fim:
+                        fimData.toISOString(),
                 },
             ]);
         } catch (error) {
@@ -293,6 +564,10 @@ export default function Atmos() {
             setSalvando(false);
         }
     }
+
+    // ==================================================
+    // INTERFACE
+    // ==================================================
 
     return (
         <Shell>
@@ -317,23 +592,115 @@ export default function Atmos() {
                 </Card>
             ) : (
                 <>
-                    <h2 className="text-xl mb-4">
-                        1. Escolha o espaço
-                    </h2>
+                    {/* ===================================
+                        CABEÇALHO DO CARROSSEL
+                    =================================== */}
 
-                    <div className="grid sm:grid-cols-3 gap-4 mb-10">
+                    <div className="flex items-center justify-between gap-4 mb-5">
+                        <div>
+                            <h2 className="text-xl">
+                                1. Escolha o espaço
+                            </h2>
+
+                            <p className="text-white/40 text-sm mt-1">
+                                {espacos.length}{' '}
+                                ambientes disponíveis
+                            </p>
+                        </div>
+
+                        {/* BOTÕES - TABLET E DESKTOP */}
+
+                        <div className="hidden sm:flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    moverCarrossel('anterior')
+                                }
+                                disabled={!podeVoltar}
+                                aria-label="Ver ambientes anteriores"
+                                className="w-11 h-11 rounded-xl border border-[#DBB13F]/40 text-[#DBB13F] hover:bg-[#DBB13F] hover:text-black transition disabled:opacity-25 disabled:cursor-not-allowed"
+                            >
+                                ←
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    moverCarrossel('proximo')
+                                }
+                                disabled={!podeAvancar}
+                                aria-label="Ver próximos ambientes"
+                                className="w-11 h-11 rounded-xl border border-[#DBB13F]/40 text-[#DBB13F] hover:bg-[#DBB13F] hover:text-black transition disabled:opacity-25 disabled:cursor-not-allowed"
+                            >
+                                →
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* INDICAÇÃO PARA CELULAR */}
+
+                    {espacos.length > 1 && (
+                        <div className="sm:hidden flex items-center gap-2 mb-4 text-[#DBB13F] text-sm">
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-[#DBB13F]/30">
+                                ⇆
+                            </span>
+
+                            <span>
+                                Deslize para ver mais ambientes →
+                            </span>
+                        </div>
+                    )}
+
+                    {/* ===================================
+                        CARROSSEL
+                    =================================== */}
+
+                    <div
+                        ref={carrosselRef}
+                        onPointerDown={iniciarArrasto}
+                        onPointerMove={duranteArrasto}
+                        onPointerUp={terminarArrasto}
+                        onPointerCancel={terminarArrasto}
+                        onPointerLeave={terminarArrasto}
+                        onScroll={atualizarCarrossel}
+                        className={`
+                            flex gap-4
+                            overflow-x-auto
+                            snap-x snap-mandatory
+                            select-none
+                            pb-3
+                            [scrollbar-width:none]
+                            [&::-webkit-scrollbar]:hidden
+                            ${arrastando
+                                ? 'cursor-grabbing snap-none'
+                                : 'cursor-grab'
+                            }
+                        `}
+                    >
                         {espacos.map((item) => (
                             <button
                                 key={item.id}
-                                onClick={() => {
-                                    setEspacoId(item.id);
-                                    setPessoas(1);
-                                    setSucesso('');
-                                }}
-                                className={`text-left bg-[#111111] rounded-2xl border p-5 transition ${espacoId === item.id
-                                    ? 'border-[#DBB13F]'
-                                    : 'border-white/10 hover:border-white/30'
-                                    }`}
+                                data-card-atmos
+                                type="button"
+                                draggable={false}
+                                onClick={() =>
+                                    selecionarEspaco(item)
+                                }
+                                className={`
+                                    shrink-0 snap-start
+                                    text-left
+                                    w-[85%]
+                                    sm:w-[calc((100%-1rem)/2)]
+                                    lg:w-[calc((100%-2rem)/3)]
+                                    bg-[#111111]
+                                    rounded-2xl
+                                    border p-5
+                                    transition-colors
+                                    ${espacoId === item.id
+                                        ? 'border-[#DBB13F]'
+                                        : 'border-white/10 hover:border-white/30'
+                                    }
+                                `}
                             >
                                 <div className="h-24 rounded-xl bg-[radial-gradient(circle_at_70%_30%,rgba(54,31,91,.7),transparent_65%)] border border-white/5" />
 
@@ -344,6 +711,12 @@ export default function Atmos() {
                                 <h3 className="text-xl mt-2">
                                     {item.name}
                                 </h3>
+
+                                {item.description && (
+                                    <p className="text-white/40 text-sm mt-2 line-clamp-2">
+                                        {item.description}
+                                    </p>
+                                )}
 
                                 <p className="text-white/45 text-sm mt-2">
                                     Até {item.capacity} pessoas
@@ -358,14 +731,42 @@ export default function Atmos() {
                         ))}
                     </div>
 
+                    {/* BARRA DE PROGRESSO */}
+
+                    {espacos.length > 1 && (
+                        <div className="mt-4 mb-10">
+                            <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden">
+                                <div
+                                    className="h-full bg-[#DBB13F] rounded-full transition-[width] duration-150"
+                                    style={{
+                                        width: `${Math.max(
+                                            8,
+                                            progresso
+                                        )}%`,
+                                    }}
+                                />
+                            </div>
+
+                            <p className="text-white/30 text-xs mt-2 text-right">
+                                {podeAvancar
+                                    ? 'Explore os próximos ambientes'
+                                    : 'Você visualizou todos os ambientes'}
+                            </p>
+                        </div>
+                    )}
+
                     {espacos.length === 0 && (
                         <Card>
                             <p className="text-white/50">
-                                Nenhum espaço Atmos cadastrado.
-                                Execute o seed no backend.
+                                Nenhum espaço ou sala
+                                disponível para reserva.
                             </p>
                         </Card>
                     )}
+
+                    {/* ===================================
+                        CALENDÁRIO E FORMULÁRIO
+                    =================================== */}
 
                     {espaco && (
                         <div className="grid lg:grid-cols-2 gap-6">
@@ -378,10 +779,20 @@ export default function Atmos() {
 
                                 <div className="flex items-center justify-between mb-6">
                                     <button
-                                        onClick={() => mudarMes(-1)}
+                                        type="button"
+                                        onClick={() =>
+                                            mudarMes(-1)
+                                        }
                                         disabled={
-                                            dataISO(ano, mes - 1, 1) <=
-                                            hojeSP().slice(0, 7) + '-01'
+                                            dataISO(
+                                                ano,
+                                                mes - 1,
+                                                1
+                                            ) <=
+                                            hojeSP().slice(
+                                                0,
+                                                7
+                                            ) + '-01'
                                         }
                                         className="text-[#DBB13F] px-3 py-2 disabled:opacity-20"
                                     >
@@ -393,7 +804,10 @@ export default function Atmos() {
                                     </h3>
 
                                     <button
-                                        onClick={() => mudarMes(1)}
+                                        type="button"
+                                        onClick={() =>
+                                            mudarMes(1)
+                                        }
                                         className="text-[#DBB13F] px-3 py-2"
                                     >
                                         →
@@ -401,34 +815,46 @@ export default function Atmos() {
                                 </div>
 
                                 <div className="grid grid-cols-7 gap-2">
-                                    {DIAS.map((dia, index) => (
-                                        <div
-                                            key={index}
-                                            className="text-center text-white/35 text-xs py-2"
-                                        >
-                                            {dia}
-                                        </div>
-                                    ))}
+                                    {DIAS.map(
+                                        (dia, index) => (
+                                            <div
+                                                key={index}
+                                                className="text-center text-white/35 text-xs py-2"
+                                            >
+                                                {dia}
+                                            </div>
+                                        )
+                                    )}
 
                                     {Array.from({
                                         length: primeiroDia,
                                     }).map((_, index) => (
-                                        <div key={`vazio-${index}`} />
+                                        <div
+                                            key={`vazio-${index}`}
+                                        />
                                     ))}
 
                                     {Array.from({
                                         length: diasNoMes,
                                     }).map((_, index) => {
-                                        const dia = index + 1;
-                                        const valor = dataISO(
-                                            ano,
-                                            mes - 1,
-                                            dia
-                                        );
+                                        const dia =
+                                            index + 1;
 
-                                        const diaSemana = new Date(
-                                            Date.UTC(ano, mes - 1, dia)
-                                        ).getUTCDay();
+                                        const valor =
+                                            dataISO(
+                                                ano,
+                                                mes - 1,
+                                                dia
+                                            );
+
+                                        const diaSemana =
+                                            new Date(
+                                                Date.UTC(
+                                                    ano,
+                                                    mes - 1,
+                                                    dia
+                                                )
+                                            ).getUTCDay();
 
                                         const bloqueado =
                                             diaSemana === 0 ||
@@ -437,17 +863,30 @@ export default function Atmos() {
                                         return (
                                             <button
                                                 key={valor}
-                                                disabled={bloqueado}
+                                                type="button"
+                                                disabled={
+                                                    bloqueado
+                                                }
                                                 onClick={() => {
-                                                    setData(valor);
-                                                    setSucesso('');
+                                                    setData(
+                                                        valor
+                                                    );
+                                                    setSucesso(
+                                                        ''
+                                                    );
                                                 }}
-                                                className={`aspect-square rounded-xl text-sm transition ${data === valor
-                                                    ? 'bg-[#DBB13F] text-black font-semibold'
-                                                    : bloqueado
-                                                        ? 'text-white/15 cursor-not-allowed'
-                                                        : 'bg-white/5 hover:bg-white/15'
-                                                    }`}
+                                                className={`
+                                                    aspect-square
+                                                    rounded-xl
+                                                    text-sm
+                                                    transition
+                                                    ${data === valor
+                                                        ? 'bg-[#DBB13F] text-black font-semibold'
+                                                        : bloqueado
+                                                            ? 'text-white/15 cursor-not-allowed'
+                                                            : 'bg-white/5 hover:bg-white/15'
+                                                    }
+                                                `}
                                             >
                                                 {dia}
                                             </button>
@@ -456,11 +895,12 @@ export default function Atmos() {
                                 </div>
 
                                 <p className="text-white/35 text-xs mt-5">
-                                    Domingos e datas passadas estão bloqueados.
+                                    Domingos e datas passadas
+                                    estão bloqueados.
                                 </p>
                             </div>
 
-                            {/* HORÁRIOS */}
+                            {/* FORMULÁRIO */}
 
                             <div className="bg-[#111111] border border-white/10 rounded-2xl p-6">
                                 <h2 className="text-xl mb-6">
@@ -468,7 +908,8 @@ export default function Atmos() {
                                 </h2>
 
                                 <p className="text-white/45 text-sm mb-5">
-                                    {espaco.name} · até {espaco.capacity} pessoas
+                                    {espaco.name} · até{' '}
+                                    {espaco.capacity} pessoas
                                 </p>
 
                                 <div className="grid grid-cols-2 gap-4">
@@ -482,8 +923,12 @@ export default function Atmos() {
                                             step="60"
                                             value={inicio}
                                             onChange={(e) => {
-                                                setInicio(e.target.value);
-                                                setSucesso('');
+                                                setInicio(
+                                                    e.target.value
+                                                );
+                                                setSucesso(
+                                                    ''
+                                                );
                                             }}
                                             className="mt-2 w-full bg-[#080808] border border-white/15 rounded-xl p-3 text-white"
                                         />
@@ -499,8 +944,12 @@ export default function Atmos() {
                                             step="60"
                                             value={fim}
                                             onChange={(e) => {
-                                                setFim(e.target.value);
-                                                setSucesso('');
+                                                setFim(
+                                                    e.target.value
+                                                );
+                                                setSucesso(
+                                                    ''
+                                                );
                                             }}
                                             className="mt-2 w-full bg-[#080808] border border-white/15 rounded-xl p-3 text-white"
                                         />
@@ -518,7 +967,11 @@ export default function Atmos() {
                                         max={espaco.capacity}
                                         value={pessoas}
                                         onChange={(e) =>
-                                            setPessoas(Number(e.target.value))
+                                            setPessoas(
+                                                Number(
+                                                    e.target.value
+                                                )
+                                            )
                                         }
                                         className="mt-2 w-full bg-[#080808] border border-white/15 rounded-xl p-3 text-white"
                                     />
@@ -534,14 +987,16 @@ export default function Atmos() {
                                         maxLength={1000}
                                         value={observacoes}
                                         onChange={(e) =>
-                                            setObservacoes(e.target.value)
+                                            setObservacoes(
+                                                e.target.value
+                                            )
                                         }
                                         placeholder="Informações sobre sua experiência"
                                         className="mt-2 w-full bg-[#080808] border border-white/15 rounded-xl p-3 text-white resize-none"
                                     />
                                 </label>
 
-                                {/* OCUPAÇÃO DO DIA */}
+                                {/* HORÁRIOS OCUPADOS */}
 
                                 <div className="mt-6 pt-5 border-t border-white/10">
                                     <p className="text-white/45 text-xs mb-3">
@@ -558,16 +1013,22 @@ export default function Atmos() {
                                         </p>
                                     ) : (
                                         <div className="flex flex-wrap gap-2">
-                                            {ocupados.map((intervalo, i) => (
-                                                <span
-                                                    key={i}
-                                                    className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs"
-                                                >
-                                                    {horarioLocal(intervalo.inicio)}
-                                                    {' – '}
-                                                    {horarioLocal(intervalo.fim)}
-                                                </span>
-                                            ))}
+                                            {ocupados.map(
+                                                (intervalo, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs"
+                                                    >
+                                                        {horarioLocal(
+                                                            intervalo.inicio
+                                                        )}
+                                                        {' – '}
+                                                        {horarioLocal(
+                                                            intervalo.fim
+                                                        )}
+                                                    </span>
+                                                )
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -577,8 +1038,8 @@ export default function Atmos() {
                                 {!consultando && !sucesso && (
                                     <p
                                         className={`mt-5 text-sm ${disponivel
-                                            ? 'text-green-400'
-                                            : 'text-amber-400'
+                                                ? 'text-green-400'
+                                                : 'text-amber-400'
                                             }`}
                                     >
                                         {domingo
@@ -589,7 +1050,8 @@ export default function Atmos() {
                                                     ? 'Escolha um horário futuro.'
                                                     : conflito
                                                         ? 'O horário escolhido está ocupado.'
-                                                        : pessoas > espaco.capacity ||
+                                                        : pessoas >
+                                                            espaco.capacity ||
                                                             pessoas < 1
                                                             ? 'Quantidade de pessoas inválida.'
                                                             : disponivel
@@ -620,6 +1082,7 @@ export default function Atmos() {
                                 )}
 
                                 <button
+                                    type="button"
                                     onClick={reservar}
                                     disabled={
                                         !disponivel ||
