@@ -12,9 +12,9 @@ export default function Login() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [mostrarSenha, setMostrarSenha] = useState(false);
 
-    const [manterConectado, setManterConectado] =
-        useState(true);
+    const [manterConectado, setManterConectado] = useState(true);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -221,38 +221,44 @@ export default function Login() {
 
                     {/* SENHA */}
 
-                    <label className="text-sm text-white/55">
+                    <label htmlFor="senha" className="text-sm text-white/55">
                         Senha
                     </label>
 
-                    <input
-                        value={password}
-
-                        onChange={(e) =>
-                            setPassword(e.target.value)
-                        }
-
-                        type="password"
-
-                        autoComplete="current-password"
-
-                        required
-
-                        placeholder="Sua senha"
-
-                        className="
-              w-full
-              mt-2
-              bg-[#111111]
-              border
-              border-white/10
-              rounded-xl
-              p-4
-              outline-none
-              focus:border-[#DBB13F]
-              transition
-            "
-                    />
+                    <div className="relative mt-2">
+                        <input
+                            id="senha"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            type={mostrarSenha ? 'text' : 'password'}
+                            autoComplete="current-password"
+                            required
+                            placeholder="Sua senha"
+                            className="w-full bg-[#111111] border border-white/10 rounded-xl p-4 pr-14 outline-none focus:border-[#DBB13F] transition"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setMostrarSenha((anterior) => !anterior)}
+                            aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                            aria-pressed={mostrarSenha}
+                            title={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-lg text-white/50 hover:text-[#DBB13F] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#DBB13F] transition"
+                        >
+                            {mostrarSenha ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M10.58 10.59a2 2 0 0 0 2.83 2.82" />
+                                    <path d="M9.88 5.09A10.94 10.94 0 0 1 12 4.9c7 0 10 7.1 10 7.1a13.7 13.7 0 0 1-4.02 4.8" />
+                                    <path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7.1 10 7.1a10.9 10.9 0 0 0 5.39-1.49" />
+                                    <path d="m2 2 20 20" />
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M2 12s3-7.1 10-7.1S22 12 22 12s-3 7.1-10 7.1S2 12 2 12Z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                </svg>
+                            )}
+                        </button>
+                    </div>
 
 
                     {/* OPÇÕES */}
