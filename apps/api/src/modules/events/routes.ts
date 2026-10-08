@@ -1,9 +1,44 @@
+
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
+
 import { prisma } from '../../lib/prisma.js';
 import { requireAuth } from '../../middlewares/auth.js';
 
 export const eventsRouter = Router();
 
+/**
+ * Normaliza os parâmetros de rota.
+ */
+function obterId(
+  parametro: string | string[] | undefined
+): string | null {
+  if (typeof parametro !== 'string') {
+    return null;
+  }
+
+  const id = parametro.trim();
+
+  return id.length > 0 ? id : null;
+}
+
+/**
+ * Calcula as vagas ocupadas por inscrições confirmadas.
+ */
+function calcularVagas(
+  capacity: number,
+  registrations: Array<{ seats: number }>
+) {
+  const seatsUsed = registrations.reduce(
+    (total, registro) => total + registro.seats,
+    0
+  );
+
+  return {
+    seatsUsed,
+    seatsAvailable: Math.max(capacity - seatsUsed, 0),
+  };
+}
 
 /* =========================================================
    LISTAR EVENTOS PUBLICADOS
@@ -11,59 +46,49 @@ export const eventsRouter = Router();
 ========================================================= */
 
 eventsRouter.get('/', async (_req, res) => {
-    try {
-        const eventos = await prisma.event.findMany({
-            where: {
-                status: 'PUBLISHED',
-            },
+  try {
+    const eventos = await prisma.event.findMany({
+      where: {
+        status: 'PUBLISHED',
+      },
+      orderBy: {
+        startsAt: 'asc',
+      },
+      include: {
+        registrations: {
+          where: {
+            status: 'CONFIRMED',
+          },
+          select: {
+            seats: true,
+          },
+        },
+      },
+    });
 
-            orderBy: {
-                startsAt: 'asc',
-            },
+    const resultado = eventos.map((evento) => {
+      const vagas = calcularVagas(
+        evento.capacity,
+        evento.registrations
+      );
 
-            include: {
-                registrations: {
-                    where: {
-                        status: 'CONFIRMED',
-                    },
+      const { registrations, ...dadosEvento } = evento;
 
-                    select: {
-                        seats: true,
-                    },
-                },
-            },
-        });
+      return {
+        ...dadosEvento,
+        ...vagas,
+      };
+    });
 
-        const resultado = eventos.map((evento) => {
-            const seatsUsed = evento.registrations.reduce(
-                (total, registro) => total + registro.seats,
-                0
-            );
+    return res.json(resultado);
+  } catch (error) {
+    console.error('Erro ao listar eventos:', error);
 
-            const { registrations, ...dadosEvento } = evento;
-
-            return {
-                ...dadosEvento,
-
-                seatsUsed,
-
-                seatsAvailable: Math.max(
-                    evento.capacity - seatsUsed,
-                    0
-                ),
-            };
-        });
-
-        return res.json(resultado);
-    } catch (error) {
-        console.error('Erro ao listar eventos:', error);
-
-        return res.status(500).json({
-            message: 'Erro ao listar eventos.',
-        });
-    }
+    return res.status(500).json({
+      message: 'Erro ao listar eventos.',
+    });
+  }
 });
-
 
 /* =========================================================
    DASHBOARD DE EVENTOS
@@ -71,31 +96,32 @@ eventsRouter.get('/', async (_req, res) => {
 ========================================================= */
 
 eventsRouter.get(
-    '/dashboard',
-    requireAuth,
-    async (_req, res) => {
-        try {
-            const eventos = await prisma.event.findMany({
-                where: {
-                    status: 'PUBLISHED',
-                },
+  '/dashboard',
+  requireAuth,
+  async (_req, res) => {
+    try {
+      const eventos = await prisma.event.findMany({
+        where: {
+          status: 'PUBLISHED',
+        },
+        orderBy: {
+          startsAt: 'asc',
+        },
+      });
 
-                orderBy: {
-                    startsAt: 'asc',
-                },
-            });
+      return res.json(eventos);
+    } catch (error) {
+      console.error(
+        'Erro no dashboard de eventos:',
+        error
+      );
 
-            return res.json(eventos);
-        } catch (error) {
-            console.error('Erro no dashboard de eventos:', error);
-
-            return res.status(500).json({
-                message: 'Erro ao carregar dashboard de eventos.',
-            });
-        }
+      return res.status(500).json({
+        message: 'Erro ao carregar dashboard de eventos.',
+      });
     }
+  }
 );
-
 
 /* =========================================================
    CONFIRMAR PRESENÇA
@@ -103,186 +129,234 @@ eventsRouter.get(
 ========================================================= */
 
 eventsRouter.post(
-    '/:id/confirmar-presenca',
-    requireAuth,
-    async (req, res) => {
-        try {
-            const eventId = req.params.id;
-            const userId = req.auth!.sub;
+  '/:id/confirmar-presenca',
+  requireAuth,
+  async (req, res) => {
+    const eventId = obterId(req.params.id);
 
-            // Busca o evento
-            const evento = await prisma.event.findUnique({
-                where: {
-                    id: eventId,
-                },
-
-                include: {
-                    registrations: {
-                        where: {
-                            status: 'CONFIRMED',
-                        },
-
-                        select: {
-                            userId: true,
-                            seats: true,
-                        },
-                    },
-                },
-            });
-
-            // Evento não existe
-            if (!evento) {
-                return res.status(404).json({
-                    message: 'Evento não encontrado.',
-                });
-            }
-
-            // Somente eventos publicados aceitam confirmação
-            if (evento.status !== 'PUBLISHED') {
-                return res.status(400).json({
-                    message: 'Este evento não está disponível para confirmação.',
-                });
-            }
-
-            // Verifica se este usuário já confirmou
-            const jaConfirmado = evento.registrations.some(
-                (registro) => registro.userId === userId
-            );
-
-            if (jaConfirmado) {
-                return res.status(409).json({
-                    message: 'Sua presença já está confirmada.',
-                    presencaConfirmada: true,
-                });
-            }
-
-            // Calcula quantidade de vagas ocupadas
-            const seatsUsed = evento.registrations.reduce(
-                (total, registro) => total + registro.seats,
-                0
-            );
-
-            // Evento lotado
-            if (seatsUsed >= evento.capacity) {
-                return res.status(409).json({
-                    message: 'Evento lotado.',
-                });
-            }
-
-            // Cria ou reativa a inscrição do usuário
-            await prisma.eventRegistration.upsert({
-                where: {
-                    eventId_userId: {
-                        eventId,
-                        userId,
-                    },
-                },
-
-                update: {
-                    status: 'CONFIRMED',
-                    seats: 1,
-                },
-
-                create: {
-                    eventId,
-                    userId,
-                    status: 'CONFIRMED',
-                    seats: 1,
-                },
-            });
-
-            return res.status(201).json({
-                message: 'Presença confirmada com sucesso.',
-
-                presencaConfirmada: true,
-
-                seatsUsed: seatsUsed + 1,
-
-                seatsAvailable: Math.max(
-                    evento.capacity - seatsUsed - 1,
-                    0
-                ),
-            });
-        } catch (error) {
-            console.error('Erro ao confirmar presença:', error);
-
-            return res.status(500).json({
-                message: 'Erro ao confirmar presença.',
-            });
-        }
+    if (!eventId) {
+      return res.status(400).json({
+        message: 'ID do evento inválido.',
+      });
     }
-);
 
+    const userId = req.auth!.sub;
+
+    try {
+      const resultado = await prisma.$transaction(
+        async (tx) => {
+          /*
+           * Bloqueia a linha do evento durante a confirmação.
+           * Assim, confirmações simultâneas para o mesmo
+           * evento são processadas em sequência.
+           */
+          const linhas = await tx.$queryRaw<
+            Array<{ id: string }>
+          >`
+            SELECT id
+            FROM Event
+            WHERE id = ${eventId}
+            FOR UPDATE
+          `;
+
+          if (linhas.length === 0) {
+            return {
+              httpStatus: 404,
+              body: {
+                message: 'Evento não encontrado.',
+              },
+            };
+          }
+
+          const evento = await tx.event.findUnique({
+            where: {
+              id: eventId,
+            },
+            include: {
+              registrations: {
+                where: {
+                  status: 'CONFIRMED',
+                },
+                select: {
+                  userId: true,
+                  seats: true,
+                },
+              },
+            },
+          });
+
+          if (!evento) {
+            return {
+              httpStatus: 404,
+              body: {
+                message: 'Evento não encontrado.',
+              },
+            };
+          }
+
+          if (evento.status !== 'PUBLISHED') {
+            return {
+              httpStatus: 400,
+              body: {
+                message:
+                  'Este evento não está disponível para confirmação.',
+              },
+            };
+          }
+
+          const jaConfirmado =
+            evento.registrations.some(
+              (registro) => registro.userId === userId
+            );
+
+          if (jaConfirmado) {
+            return {
+              httpStatus: 409,
+              body: {
+                message:
+                  'Sua presença já está confirmada.',
+                presencaConfirmada: true,
+              },
+            };
+          }
+
+          const vagas = calcularVagas(
+            evento.capacity,
+            evento.registrations
+          );
+
+          if (vagas.seatsAvailable < 1) {
+            return {
+              httpStatus: 409,
+              body: {
+                message: 'Evento lotado.',
+              },
+            };
+          }
+
+          await tx.eventRegistration.upsert({
+            where: {
+              eventId_userId: {
+                eventId,
+                userId,
+              },
+            },
+            update: {
+              status: 'CONFIRMED',
+              seats: 1,
+            },
+            create: {
+              eventId,
+              userId,
+              status: 'CONFIRMED',
+              seats: 1,
+            },
+          });
+
+          return {
+            httpStatus: 201,
+            body: {
+              message:
+                'Presença confirmada com sucesso.',
+              presencaConfirmada: true,
+              seatsUsed: vagas.seatsUsed + 1,
+              seatsAvailable: Math.max(
+                evento.capacity - vagas.seatsUsed - 1,
+                0
+              ),
+            },
+          };
+        },
+        {
+          isolationLevel:
+            Prisma.TransactionIsolationLevel.ReadCommitted,
+          timeout: 10000,
+        }
+      );
+
+      return res
+        .status(resultado.httpStatus)
+        .json(resultado.body);
+    } catch (error) {
+      console.error(
+        'Erro ao confirmar presença:',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          'Não foi possível confirmar presença.',
+      });
+    }
+  }
+);
 
 /* =========================================================
    BUSCAR UM EVENTO
    GET /eventos/:id
-
-   Esta rota precisa de login porque também informa
-   se o usuário atual já confirmou presença.
 ========================================================= */
 
 eventsRouter.get(
-    '/:id',
-    requireAuth,
-    async (req, res) => {
-        try {
-            const userId = req.auth!.sub;
+  '/:id',
+  requireAuth,
+  async (req, res) => {
+    const eventId = obterId(req.params.id);
 
-            const evento = await prisma.event.findUnique({
-                where: {
-                    id: req.params.id,
-                },
-
-                include: {
-                    registrations: {
-                        where: {
-                            status: 'CONFIRMED',
-                        },
-
-                        select: {
-                            userId: true,
-                            seats: true,
-                        },
-                    },
-                },
-            });
-
-            if (!evento) {
-                return res.status(404).json({
-                    message: 'Evento não encontrado.',
-                });
-            }
-
-            const seatsUsed = evento.registrations.reduce(
-                (total, registro) => total + registro.seats,
-                0
-            );
-
-            const presencaConfirmada = evento.registrations.some(
-                (registro) => registro.userId === userId
-            );
-
-            const { registrations, ...dadosEvento } = evento;
-
-            return res.json({
-                ...dadosEvento,
-
-                seatsUsed,
-
-                seatsAvailable: Math.max(
-                    evento.capacity - seatsUsed,
-                    0
-                ),
-
-                presencaConfirmada,
-            });
-        } catch (error) {
-            console.error('Erro ao buscar evento:', error);
-
-            return res.status(500).json({
-                message: 'Erro ao buscar evento.',
-            });
-        }
+    if (!eventId) {
+      return res.status(400).json({
+        message: 'ID do evento inválido.',
+      });
     }
+
+    try {
+      const userId = req.auth!.sub;
+
+      const evento = await prisma.event.findUnique({
+        where: {
+          id: eventId,
+        },
+        include: {
+          registrations: {
+            where: {
+              status: 'CONFIRMED',
+            },
+            select: {
+              userId: true,
+              seats: true,
+            },
+          },
+        },
+      });
+
+      if (!evento) {
+        return res.status(404).json({
+          message: 'Evento não encontrado.',
+        });
+      }
+
+      const vagas = calcularVagas(
+        evento.capacity,
+        evento.registrations
+      );
+
+      const presencaConfirmada =
+        evento.registrations.some(
+          (registro) => registro.userId === userId
+        );
+
+      const { registrations, ...dadosEvento } = evento;
+
+      return res.json({
+        ...dadosEvento,
+        ...vagas,
+        presencaConfirmada,
+      });
+    } catch (error) {
+      console.error('Erro ao buscar evento:', error);
+
+      return res.status(500).json({
+        message: 'Erro ao buscar evento.',
+      });
+    }
+  }
 );
