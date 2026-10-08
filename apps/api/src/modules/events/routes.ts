@@ -1,15 +1,17 @@
 
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 
 import { prisma } from '../../lib/prisma.js';
 import { requireAuth } from '../../middlewares/auth.js';
 
 export const eventsRouter = Router();
 
-/**
- * Normaliza os parâmetros de rota.
- */
+// ======================================================
+// FUNÇÕES AUXILIARES
+// ======================================================
+
 function obterId(
   parametro: string | string[] | undefined
 ): string | null {
@@ -18,13 +20,9 @@ function obterId(
   }
 
   const id = parametro.trim();
-
   return id.length > 0 ? id : null;
 }
 
-/**
- * Calcula as vagas ocupadas por inscrições confirmadas.
- */
 function calcularVagas(
   capacity: number,
   registrations: Array<{ seats: number }>
@@ -40,17 +38,129 @@ function calcularVagas(
   };
 }
 
-/* =========================================================
-   LISTAR EVENTOS PUBLICADOS
-   GET /eventos
-========================================================= */
+// ======================================================
+// VALIDAÇÃO DOS DADOS
+// ======================================================
 
-eventsRouter.get('/', async (_req, res) => {
+const eventoSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+
+  description: z.string().max(5000).nullable().optional(),
+
+  location: z.string().trim().min(1).max(255),
+
+  startsAt: z.string().datetime({ offset: true }),
+
+  endsAt: z.string().datetime({ offset: true }),
+
+  capacity: z.number().int().min(1),
+
+  coverUrl: z.string().url().nullable().optional(),
+
+  status: z.enum([
+    'DRAFT',
+    'PUBLISHED',
+    'CANCELLED',
+    'FINISHED',
+  ]).default('PUBLISHED'),
+});
+
+const editarEventoSchema = eventoSchema.partial();
+
+// ======================================================
+// MIDDLEWARE ADMIN
+// ======================================================
+
+async function requireAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
-    const eventos = await prisma.event.findMany({
+    const userId = req.auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: 'Usuário não autenticado.',
+      });
+    }
+
+    const usuario = await prisma.user.findUnique({
       where: {
-        status: 'PUBLISHED',
+        id: userId,
       },
+      select: {
+        role: true,
+      },
+    });
+
+    if (!usuario || usuario.role !== 'ADMIN') {
+      return res.status(403).json({
+        message:
+          'Apenas administradores podem gerenciar eventos.',
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error(
+      'Erro ao verificar administrador:',
+      error
+    );
+
+    return res.status(500).json({
+      message: 'Erro ao verificar permissões.',
+    });
+  }
+}
+
+// ======================================================
+// LISTAR EVENTOS
+// GET /eventos
+//
+// Visitantes: apenas publicados.
+// ADMIN autenticado: todos os eventos.
+//
+// A autenticação é opcional nesta rota.
+// ======================================================
+
+eventsRouter.get('/', async (req, res) => {
+  try {
+    let admin = false;
+
+    const authorization = req.headers.authorization;
+
+    if (authorization?.startsWith('Bearer ')) {
+      // Utiliza o middleware existente para identificar
+      // o usuário, sem bloquear visitantes.
+      await new Promise<void>((resolve) => {
+        requireAuth(
+          req,
+          res,
+          () => resolve()
+        );
+      });
+
+      if (req.auth?.sub) {
+        const usuario = await prisma.user.findUnique({
+          where: {
+            id: req.auth.sub,
+          },
+          select: {
+            role: true,
+          },
+        });
+
+        admin = usuario?.role === 'ADMIN';
+      }
+    }
+
+    if (res.headersSent) return;
+
+    const eventos = await prisma.event.findMany({
+      where: admin
+        ? {}
+        : { status: 'PUBLISHED' },
       orderBy: {
         startsAt: 'asc',
       },
@@ -66,7 +176,7 @@ eventsRouter.get('/', async (_req, res) => {
       },
     });
 
-    const resultado = eventos.map((evento) => {
+    const resultado = eventos.map(evento => {
       const vagas = calcularVagas(
         evento.capacity,
         evento.registrations
@@ -90,10 +200,179 @@ eventsRouter.get('/', async (_req, res) => {
   }
 });
 
-/* =========================================================
-   DASHBOARD DE EVENTOS
-   GET /eventos/dashboard
-========================================================= */
+// ======================================================
+// CADASTRAR EVENTO
+// POST /eventos
+// EXCLUSIVO ADMIN
+// ======================================================
+
+eventsRouter.post(
+  '/',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const entrada = eventoSchema.safeParse(req.body);
+
+    if (!entrada.success) {
+      return res.status(400).json({
+        message: 'Dados do evento inválidos.',
+        errors: entrada.error.flatten(),
+      });
+    }
+
+    const dados = entrada.data;
+
+    const startsAt = new Date(dados.startsAt);
+    const endsAt = new Date(dados.endsAt);
+
+    if (endsAt <= startsAt) {
+      return res.status(400).json({
+        message:
+          'O horário de término deve ser posterior ao início.',
+      });
+    }
+
+    try {
+      const evento = await prisma.event.create({
+        data: {
+          title: dados.title,
+          description: dados.description ?? null,
+          location: dados.location,
+          startsAt,
+          endsAt,
+          capacity: dados.capacity,
+          coverUrl: dados.coverUrl ?? null,
+          status: dados.status,
+        },
+      });
+
+      return res.status(201).json({
+        message: 'Evento cadastrado com sucesso.',
+        evento,
+      });
+    } catch (error) {
+      console.error('Erro ao cadastrar evento:', error);
+
+      return res.status(500).json({
+        message: 'Não foi possível cadastrar o evento.',
+      });
+    }
+  }
+);
+
+// ======================================================
+// EDITAR EVENTO
+// PATCH /eventos/:id
+// EXCLUSIVO ADMIN
+// ======================================================
+
+eventsRouter.patch(
+  '/:id',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const eventId = obterId(req.params.id);
+
+    if (!eventId) {
+      return res.status(400).json({
+        message: 'ID do evento inválido.',
+      });
+    }
+
+    const entrada = editarEventoSchema.safeParse(
+      req.body
+    );
+
+    if (!entrada.success) {
+      return res.status(400).json({
+        message: 'Dados de edição inválidos.',
+        errors: entrada.error.flatten(),
+      });
+    }
+
+    const dados = entrada.data;
+
+    try {
+      const existente = await prisma.event.findUnique({
+        where: {
+          id: eventId,
+        },
+      });
+
+      if (!existente) {
+        return res.status(404).json({
+          message: 'Evento não encontrado.',
+        });
+      }
+
+      const startsAt = dados.startsAt
+        ? new Date(dados.startsAt)
+        : existente.startsAt;
+
+      const endsAt = dados.endsAt
+        ? new Date(dados.endsAt)
+        : existente.endsAt;
+
+      if (endsAt <= startsAt) {
+        return res.status(400).json({
+          message:
+            'O horário de término deve ser posterior ao início.',
+        });
+      }
+
+      const capacidade =
+        dados.capacity ?? existente.capacity;
+
+      const vagasOcupadas =
+        await prisma.eventRegistration.aggregate({
+          where: {
+            eventId,
+            status: 'CONFIRMED',
+          },
+          _sum: {
+            seats: true,
+          },
+        });
+
+      const ocupadas =
+        vagasOcupadas._sum.seats ?? 0;
+
+      if (capacidade < ocupadas) {
+        return res.status(400).json({
+          message:
+            `A capacidade não pode ser inferior às ${ocupadas} vagas já confirmadas.`,
+        });
+      }
+
+      const evento = await prisma.event.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          ...dados,
+          startsAt,
+          endsAt,
+        },
+      });
+
+      return res.json({
+        message: 'Evento atualizado com sucesso.',
+        evento,
+      });
+    } catch (error) {
+      console.error('Erro ao editar evento:', error);
+
+      return res.status(500).json({
+        message: 'Não foi possível editar o evento.',
+      });
+    }
+  }
+);
+
+// ======================================================
+// DASHBOARD DE EVENTOS
+// GET /eventos/dashboard
+// ======================================================
 
 eventsRouter.get(
   '/dashboard',
@@ -117,16 +396,17 @@ eventsRouter.get(
       );
 
       return res.status(500).json({
-        message: 'Erro ao carregar dashboard de eventos.',
+        message:
+          'Erro ao carregar dashboard de eventos.',
       });
     }
   }
 );
 
-/* =========================================================
-   CONFIRMAR PRESENÇA
-   POST /eventos/:id/confirmar-presenca
-========================================================= */
+// ======================================================
+// CONFIRMAR PRESENÇA
+// POST /eventos/:id/confirmar-presenca
+// ======================================================
 
 eventsRouter.post(
   '/:id/confirmar-presenca',
@@ -144,12 +424,7 @@ eventsRouter.post(
 
     try {
       const resultado = await prisma.$transaction(
-        async (tx) => {
-          /*
-           * Bloqueia a linha do evento durante a confirmação.
-           * Assim, confirmações simultâneas para o mesmo
-           * evento são processadas em sequência.
-           */
+        async tx => {
           const linhas = await tx.$queryRaw<
             Array<{ id: string }>
           >`
@@ -206,7 +481,7 @@ eventsRouter.post(
 
           const jaConfirmado =
             evento.registrations.some(
-              (registro) => registro.userId === userId
+              registro => registro.userId === userId
             );
 
           if (jaConfirmado) {
@@ -291,10 +566,10 @@ eventsRouter.post(
   }
 );
 
-/* =========================================================
-   BUSCAR UM EVENTO
-   GET /eventos/:id
-========================================================= */
+// ======================================================
+// BUSCAR UM EVENTO
+// GET /eventos/:id
+// ======================================================
 
 eventsRouter.get(
   '/:id',
@@ -341,7 +616,7 @@ eventsRouter.get(
 
       const presencaConfirmada =
         evento.registrations.some(
-          (registro) => registro.userId === userId
+          registro => registro.userId === userId
         );
 
       const { registrations, ...dadosEvento } = evento;
@@ -360,3 +635,66 @@ eventsRouter.get(
     }
   }
 );
+
+
+/* =========================================================
+   EXCLUIR EVENTO (CANCELAMENTO LÓGICO)
+   DELETE /eventos/:id
+   EXCLUSIVO ADMIN
+========================================================= */
+
+eventsRouter.delete(
+  '/:id',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const eventId = obterId(req.params.id);
+
+    if (!eventId) {
+      return res.status(400).json({
+        message: 'ID do evento inválido.',
+      });
+    }
+
+    try {
+      const existente = await prisma.event.findUnique({
+        where: {
+          id: eventId,
+        },
+      });
+
+      if (!existente) {
+        return res.status(404).json({
+          message: 'Evento não encontrado.',
+        });
+      }
+
+      if (existente.status === 'CANCELLED') {
+        return res.status(409).json({
+          message: 'Este evento já está cancelado.',
+        });
+      }
+
+      const evento = await prisma.event.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+
+      return res.json({
+        message: 'Evento excluído da agenda com sucesso.',
+        evento,
+      });
+    } catch (error) {
+      console.error('Erro ao excluir evento:', error);
+
+      return res.status(500).json({
+        message: 'Não foi possível excluir o evento.',
+      });
+    }
+  }
+);
+
