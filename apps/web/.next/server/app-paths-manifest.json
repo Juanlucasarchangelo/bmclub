@@ -1,7 +1,4 @@
 {
-  "/reservas/page": "app/reservas/page.js",
-  "/eventos/page": "app/eventos/page.js",
-  "/eventos/disponibilidade/[id]/page": "app/eventos/disponibilidade/[id]/page.js",
-  "/atmos/page": "app/atmos/page.js",
-  "/page": "app/page.js"
+  "/admin/page": "app/admin/page.js",
+  "/atmos/page": "app/atmos/page.js"
 }

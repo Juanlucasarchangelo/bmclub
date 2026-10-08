@@ -1897,17 +1897,6 @@ eval("// This regex will have fast negatives meaning valid identifiers may not p
 
 /***/ }),
 
-/***/ "(ssr)/../../node_modules/next/dist/api/navigation.js":
-/*!******************************************************!*\
-  !*** ../../node_modules/next/dist/api/navigation.js ***!
-  \******************************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-eval("__webpack_require__.r(__webpack_exports__);\n/* harmony import */ var _client_components_navigation__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../client/components/navigation */ \"(ssr)/../../node_modules/next/dist/client/components/navigation.js\");\n/* harmony import */ var _client_components_navigation__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_client_components_navigation__WEBPACK_IMPORTED_MODULE_0__);\n/* harmony reexport (unknown) */ var __WEBPACK_REEXPORT_OBJECT__ = {};\n/* harmony reexport (unknown) */ for(const __WEBPACK_IMPORT_KEY__ in _client_components_navigation__WEBPACK_IMPORTED_MODULE_0__) if(__WEBPACK_IMPORT_KEY__ !== \"default\") __WEBPACK_REEXPORT_OBJECT__[__WEBPACK_IMPORT_KEY__] = () => _client_components_navigation__WEBPACK_IMPORTED_MODULE_0__[__WEBPACK_IMPORT_KEY__]\n/* harmony reexport (unknown) */ __webpack_require__.d(__webpack_exports__, __WEBPACK_REEXPORT_OBJECT__);\n\n\n//# sourceMappingURL=navigation.js.map//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHNzcikvLi4vLi4vbm9kZV9tb2R1bGVzL25leHQvZGlzdC9hcGkvbmF2aWdhdGlvbi5qcyIsIm1hcHBpbmdzIjoiOzs7Ozs7QUFBZ0Q7O0FBRWhEIiwic291cmNlcyI6WyJDOlxcVXNlcnNcXERlbmlsc29uXFxEb2N1bWVudHNcXFByb2pldG9zXFxibWNsdWJcXG5vZGVfbW9kdWxlc1xcbmV4dFxcZGlzdFxcYXBpXFxuYXZpZ2F0aW9uLmpzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCAqIGZyb20gJy4uL2NsaWVudC9jb21wb25lbnRzL25hdmlnYXRpb24nO1xuXG4vLyMgc291cmNlTWFwcGluZ1VSTD1uYXZpZ2F0aW9uLmpzLm1hcCJdLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOlswXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///(ssr)/../../node_modules/next/dist/api/navigation.js\n");
-
-/***/ }),
-
 /***/ "(ssr)/../../node_modules/next/dist/client/add-base-path.js":
 /*!************************************************************!*\
   !*** ../../node_modules/next/dist/client/add-base-path.js ***!
