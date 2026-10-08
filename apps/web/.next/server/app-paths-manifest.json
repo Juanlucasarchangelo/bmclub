@@ -1,4 +1,6 @@
 {
   "/admin/page": "app/admin/page.js",
-  "/atmos/page": "app/atmos/page.js"
+  "/atmos/page": "app/atmos/page.js",
+  "/login/page": "app/login/page.js",
+  "/eventos/page": "app/eventos/page.js"
 }
