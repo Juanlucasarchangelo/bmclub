@@ -77,6 +77,8 @@ export default function Atmos() {
     const [sucesso, setSucesso] = useState('');
 
     const [ano, mes] = data.split('-').map(Number);
+    const anoMaximo = Number(hojeSP().slice(0, 4)) + 1;
+    const dataMaxima = `${anoMaximo}-12-31`;
     const espaco = espacos.find((e) => e.id === espacoId);
 
     useEffect(() => {
@@ -187,6 +189,7 @@ export default function Atmos() {
         const novoMes = novaData.getUTCMonth();
 
         const primeiro = dataISO(novoAno, novoMes, 1);
+        if (novoAno > anoMaximo || primeiro > dataMaxima) return;
 
         setData(
             primeiro < hojeSP() ? hojeSP() : primeiro
@@ -224,6 +227,7 @@ export default function Atmos() {
         !domingo &&
         !foraDoHorario &&
         !passado &&
+        data <= dataMaxima &&
         !conflito &&
         pessoas >= 1 &&
         pessoas <= espaco.capacity &&
@@ -231,7 +235,7 @@ export default function Atmos() {
         !erro;
 
     async function reservar() {
-        if (!disponivel || !espaco) return;
+        if (!disponivel || !espaco || data > dataMaxima) return;
 
         const token = localStorage.getItem('bmclub_access');
 
@@ -394,7 +398,8 @@ export default function Atmos() {
 
                                     <button
                                         onClick={() => mudarMes(1)}
-                                        className="text-[#DBB13F] px-3 py-2"
+                                        disabled={ano >= anoMaximo && mes === 12}
+                                        className="text-[#DBB13F] px-3 py-2 disabled:opacity-20 disabled:cursor-not-allowed"
                                     >
                                         →
                                     </button>
@@ -432,7 +437,8 @@ export default function Atmos() {
 
                                         const bloqueado =
                                             diaSemana === 0 ||
-                                            valor < hojeSP();
+                                            valor < hojeSP() ||
+                                            valor > dataMaxima;
 
                                         return (
                                             <button
@@ -456,7 +462,7 @@ export default function Atmos() {
                                 </div>
 
                                 <p className="text-white/35 text-xs mt-5">
-                                    Domingos e datas passadas estão bloqueados.
+                                    Domingos, datas passadas e datas após Dezembro/{anoMaximo} estão bloqueados.
                                 </p>
                             </div>
 
@@ -581,7 +587,9 @@ export default function Atmos() {
                                             : 'text-amber-400'
                                             }`}
                                     >
-                                        {domingo
+                                        {data > dataMaxima
+                                            ? `Reservas permitidas até 31/12/${anoMaximo}.`
+                                            : domingo
                                             ? 'Domingos não estão disponíveis.'
                                             : foraDoHorario
                                                 ? 'Escolha um período entre 09h00 e 21h00.'

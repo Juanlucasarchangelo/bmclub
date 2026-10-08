@@ -68,7 +68,7 @@ authRouter.post('/login', async (req, res) => {
             },
             env.JWT_SECRET,
             {
-                expiresIn: '15m',
+                expiresIn: '180m',
             }
         );
 
