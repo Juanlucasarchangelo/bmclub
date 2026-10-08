@@ -105,164 +105,7 @@ export default function Atmos() {
     const [sucesso, setSucesso] = useState('');
 
     const [ano, mes] = data.split('-').map(Number);
-
-    const espaco = espacos.find(
-        (item) => item.id === espacoId
-    );
-
-    // ==================================================
-    // CARROSSEL - ESTADO E PROGRESSO
-    // ==================================================
-
-    const atualizarCarrossel = useCallback(() => {
-        const elemento = carrosselRef.current;
-
-        if (!elemento) return;
-
-        const maxScroll = Math.max(
-            0,
-            elemento.scrollWidth - elemento.clientWidth
-        );
-
-        setPodeVoltar(elemento.scrollLeft > 3);
-
-        setPodeAvancar(
-            elemento.scrollLeft < maxScroll - 3
-        );
-
-        setProgresso(
-            maxScroll > 0
-                ? Math.min(
-                    100,
-                    Math.max(
-                        0,
-                        (elemento.scrollLeft / maxScroll) * 100
-                    )
-                )
-                : 100
-        );
-    }, []);
-
-    function moverCarrossel(
-        direcao: 'anterior' | 'proximo'
-    ) {
-        const elemento = carrosselRef.current;
-
-        if (!elemento) return;
-
-        const card =
-            elemento.querySelector<HTMLElement>(
-                '[data-card-atmos]'
-            );
-
-        if (!card) return;
-
-        const estilos = window.getComputedStyle(elemento);
-
-        const gap =
-            parseFloat(estilos.columnGap) || 16;
-
-        const distancia =
-            card.getBoundingClientRect().width + gap;
-
-        elemento.scrollBy({
-            left:
-                direcao === 'proximo'
-                    ? distancia
-                    : -distancia,
-            behavior: 'smooth',
-        });
-    }
-
-    // ==================================================
-    // CARROSSEL - ARRASTE COM MOUSE
-    // ==================================================
-
-    function iniciarArrasto(
-        e: ReactPointerEvent<HTMLDivElement>
-    ) {
-        if (e.pointerType !== 'mouse') return;
-        if (e.button !== 0) return;
-
-        const elemento = carrosselRef.current;
-
-        if (!elemento) return;
-
-        ignorarCliqueRef.current = false;
-
-        arrastoRef.current = {
-            pressionado: true,
-            inicioX: e.clientX,
-            scrollInicial: elemento.scrollLeft,
-            arrastou: false,
-        };
-    }
-
-    function duranteArrasto(
-        e: ReactPointerEvent<HTMLDivElement>
-    ) {
-        if (!arrastoRef.current.pressionado) return;
-
-        const elemento = carrosselRef.current;
-
-        if (!elemento) return;
-
-        const distancia =
-            e.clientX - arrastoRef.current.inicioX;
-
-        if (Math.abs(distancia) > 5) {
-            arrastoRef.current.arrastou = true;
-            ignorarCliqueRef.current = true;
-            setArrastando(true);
-        }
-
-        if (arrastoRef.current.arrastou) {
-            e.preventDefault();
-
-            elemento.scrollLeft =
-                arrastoRef.current.scrollInicial -
-                distancia;
-        }
-    }
-
-    function terminarArrasto() {
-        arrastoRef.current.pressionado = false;
-        setArrastando(false);
-    }
-
-    function selecionarEspaco(item: Espaco) {
-        if (ignorarCliqueRef.current) {
-            ignorarCliqueRef.current = false;
-            return;
-        }
-
-        setEspacoId(item.id);
-        setPessoas(1);
-        setSucesso('');
-        setErro('');
-    }
-
-    useEffect(() => {
-        if (loading) return;
-
-        const elemento = carrosselRef.current;
-
-        if (!elemento) return;
-
-        atualizarCarrossel();
-
-        const observer = new ResizeObserver(() => {
-            atualizarCarrossel();
-        });
-
-        observer.observe(elemento);
-
-        return () => observer.disconnect();
-    }, [loading, espacos, atualizarCarrossel]);
-
-    // ==================================================
-    // CARREGAR ESPAÇOS E SALAS
-    // ==================================================
+    const espaco = espacos.find((e) => e.id === espacoId);
 
     useEffect(() => {
         async function carregar() {
@@ -416,11 +259,7 @@ export default function Atmos() {
         const novoMes =
             novaData.getUTCMonth();
 
-        const primeiro = dataISO(
-            novoAno,
-            novoMes,
-            1
-        );
+        const primeiro = dataISO(novoAno, novoMes, 1);
 
         setData(
             primeiro < hojeSP()
@@ -480,6 +319,7 @@ export default function Atmos() {
         !domingo &&
         !foraDoHorario &&
         !passado &&
+        data <= dataMaxima &&
         !conflito &&
         pessoas >= 1 &&
         pessoas <= espaco.capacity &&
@@ -491,7 +331,7 @@ export default function Atmos() {
     // ==================================================
 
     async function reservar() {
-        if (!disponivel || !espaco) return;
+        if (!disponivel || !espaco || data > dataMaxima) return;
 
         const token = localStorage.getItem(
             'bmclub_access'
@@ -804,10 +644,7 @@ export default function Atmos() {
                                     </h3>
 
                                     <button
-                                        type="button"
-                                        onClick={() =>
-                                            mudarMes(1)
-                                        }
+                                        onClick={() => mudarMes(1)}
                                         className="text-[#DBB13F] px-3 py-2"
                                     >
                                         →
@@ -858,7 +695,8 @@ export default function Atmos() {
 
                                         const bloqueado =
                                             diaSemana === 0 ||
-                                            valor < hojeSP();
+                                            valor < hojeSP() ||
+                                            valor > dataMaxima;
 
                                         return (
                                             <button
@@ -895,8 +733,7 @@ export default function Atmos() {
                                 </div>
 
                                 <p className="text-white/35 text-xs mt-5">
-                                    Domingos e datas passadas
-                                    estão bloqueados.
+                                    Domingos e datas passadas estão bloqueados.
                                 </p>
                             </div>
 
@@ -1038,25 +875,27 @@ export default function Atmos() {
                                 {!consultando && !sucesso && (
                                     <p
                                         className={`mt-5 text-sm ${disponivel
-                                                ? 'text-green-400'
-                                                : 'text-amber-400'
+                                            ? 'text-green-400'
+                                            : 'text-amber-400'
                                             }`}
                                     >
-                                        {domingo
-                                            ? 'Domingos não estão disponíveis.'
-                                            : foraDoHorario
-                                                ? 'Escolha um período entre 09h00 e 21h00.'
-                                                : passado
-                                                    ? 'Escolha um horário futuro.'
-                                                    : conflito
-                                                        ? 'O horário escolhido está ocupado.'
-                                                        : pessoas >
-                                                            espaco.capacity ||
-                                                            pessoas < 1
-                                                            ? 'Quantidade de pessoas inválida.'
-                                                            : disponivel
-                                                                ? '✓ Horário disponível para reserva.'
-                                                                : 'Verifique os dados da reserva.'}
+                                        {data > dataMaxima
+                                            ? `Reservas permitidas até 31/12/${anoMaximo}.`
+                                            : domingo
+                                                ? 'Domingos não estão disponíveis.'
+                                                : foraDoHorario
+                                                    ? 'Escolha um período entre 09h00 e 21h00.'
+                                                    : passado
+                                                        ? 'Escolha um horário futuro.'
+                                                        : conflito
+                                                            ? 'O horário escolhido está ocupado.'
+                                                            : pessoas >
+                                                                espaco.capacity ||
+                                                                pessoas < 1
+                                                                ? 'Quantidade de pessoas inválida.'
+                                                                : disponivel
+                                                                    ? '✓ Horário disponível para reserva.'
+                                                                    : 'Verifique os dados da reserva.'}
                                     </p>
                                 )}
 
