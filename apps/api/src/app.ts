@@ -1,7 +1,9 @@
+
 import express from 'express';
 import cors from 'cors';
 
 import { env } from './config/env.js';
+
 import { authRouter } from './modules/auth/routes.js';
 import { eventsRouter } from './modules/events/routes.js';
 import { spacesRouter } from './modules/spaces/routes.js';
@@ -9,13 +11,16 @@ import { reservationsRouter } from './modules/reservations/routes.js';
 import { adminRouter } from './modules/admin/routes.js';
 import { atmosRouter } from './modules/atmos/routes.js';
 
+import {
+  uploadsRouter,
+  UPLOADS_DIR,
+} from './modules/uploads/routes.js';
+
 export const app = express();
 
-/*
-|--------------------------------------------------------------------------
-| CORS
-|--------------------------------------------------------------------------
-*/
+// ======================================================
+// CORS
+// ======================================================
 
 const origensPermitidas = env.CORS_ORIGINS
   .split(',')
@@ -25,8 +30,6 @@ const origensPermitidas = env.CORS_ORIGINS
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Permite chamadas sem Origin:
-      // Postman, navegador direto, apps mobile etc.
       if (!origin) {
         return callback(null, true);
       }
@@ -35,10 +38,15 @@ app.use(
         return callback(null, true);
       }
 
-      console.error('Origem bloqueada pelo CORS:', origin);
+      console.error(
+        'Origem bloqueada pelo CORS:',
+        origin
+      );
 
       return callback(
-        new Error(`Origem não permitida pelo CORS: ${origin}`)
+        new Error(
+          `Origem não permitida pelo CORS: ${origin}`
+        )
       );
     },
 
@@ -60,13 +68,24 @@ app.use(
   })
 );
 
+// ======================================================
+// MIDDLEWARES
+// ======================================================
+
 app.use(express.json());
 
-/*
-|--------------------------------------------------------------------------
-| HEALTH
-|--------------------------------------------------------------------------
-*/
+// Disponibiliza as imagens enviadas.
+// Exemplo:
+// http://192.168.0.87:4000/uploads/foto.jpg
+
+app.use(
+  '/uploads',
+  express.static(UPLOADS_DIR)
+);
+
+// ======================================================
+// HEALTH
+// ======================================================
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -75,11 +94,9 @@ app.get('/health', (_req, res) => {
   });
 });
 
-/*
-|--------------------------------------------------------------------------
-| ROTAS
-|--------------------------------------------------------------------------
-*/
+// ======================================================
+// ROTAS
+// ======================================================
 
 app.use('/auth', authRouter);
 
@@ -92,3 +109,6 @@ app.use('/reservations', reservationsRouter);
 app.use('/admin', adminRouter);
 
 app.use('/atmos', atmosRouter);
+
+// Upload de imagens: POST /uploads
+app.use('/uploads', uploadsRouter);

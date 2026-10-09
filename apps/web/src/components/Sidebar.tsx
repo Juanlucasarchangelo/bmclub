@@ -26,6 +26,7 @@ const links = [
   { href: '/inicio', label: 'Início', Icon: LayoutDashboard },
   { href: '/eventos', label: 'Eventos', Icon: CalendarDays },
   { href: '/reservas', label: 'Minhas reservas', Icon: TicketCheck },
+  { href: '/salas', label: 'Salas', Icon: UserRound },
   { href: '/atmos', label: 'ATMOS', Icon: Clapperboard },
   {
     href: '/admin',
