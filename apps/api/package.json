@@ -8,9 +8,12 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed-all.ts",
+    "db:seed": "npm run prisma:seed",
+    "prisma:seed:bmclub": "tsx prisma/seed.ts",
+    "prisma:seed:atmos": "tsx prisma/seed-atmos.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",

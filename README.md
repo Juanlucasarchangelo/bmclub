@@ -114,7 +114,7 @@ npm install
 apps/api/.env
 
 # Exemplo de conexão com o MySQL
-DATABASE_URL="mysql://bmclub:bmclub_dev@localhost:3306/bmclub"
+DATABASE_URL="mysql://usuario:senha@localhost:3306/nome_do_banco"
 
 # Gere o Prisma Client
 npm run db:generate

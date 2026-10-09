@@ -1,51 +1,62 @@
+
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 
-const prisma = new PrismaClient();
+export async function seedBMClub(prisma: PrismaClient) {
+  const email = 'admin@bmclub.com.br';
+  const senha =
+    process.env.SEED_ADMIN_PASSWORD || 'BMClub@2026';
 
-async function main() {
-  console.log('🌱 Iniciando seed do BMClub...');
+  console.log('\n🌱 Seed BMClub...');
 
-  const passwordHash = await argon2.hash('BMClub@2026');
-
-  const admin = await prisma.user.upsert({
-    where: {
-      email: 'admin@bmclub.com.br',
-    },
-
-    update: {
-      name: 'Administrador BMClub',
-      passwordHash,
-      role: 'ADMIN',
-    },
-
-    create: {
-      name: 'Administrador BMClub',
-      email: 'admin@bmclub.com.br',
-      passwordHash,
-      role: 'ADMIN',
-    },
+  const existente = await prisma.user.findUnique({
+    where: { email }
   });
 
-  console.log('✅ Administrador criado/atualizado');
-  console.log('');
-  console.log('--------------------------------');
-  console.log('BMClub Brasil - Acesso inicial');
-  console.log('--------------------------------');
-  console.log(`ID:     ${admin.id}`);
-  console.log(`Nome:   ${admin.name}`);
-  console.log(`E-mail: ${admin.email}`);
-  console.log(`Perfil: ${admin.role}`);
-  console.log('--------------------------------');
+  if (existente) {
+    await prisma.user.update({
+      where: { email },
+      data: { role: 'ADMIN' }
+    });
+
+    const valida = await argon2.verify(
+      existente.passwordHash,
+      senha
+    );
+
+    console.log('✅ Administrador já existe.');
+    console.log(
+      valida
+        ? '✅ Senha inicial validada.'
+        : '⚠️ Senha atual diferente da senha inicial.'
+    );
+
+    return;
+  }
+
+  const passwordHash = await argon2.hash(senha);
+
+  const admin = await prisma.user.create({
+    data: {
+      name: 'Administrador BMClub',
+      email,
+      passwordHash,
+      role: 'ADMIN'
+    }
+  });
+
+  const valida = await argon2.verify(
+    admin.passwordHash,
+    senha
+  );
+
+  if (!valida) {
+    throw new Error(
+      'Falha ao validar a senha inicial do administrador.'
+    );
+  }
+
+  console.log(`✅ Administrador criado: ${admin.email}`);
+  console.log('✅ Senha inicial validada com Argon2.');
 }
-
-main()
-  .catch((error) => {
-    console.error('❌ Erro ao executar seed:');
-    console.error(error);
-
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });

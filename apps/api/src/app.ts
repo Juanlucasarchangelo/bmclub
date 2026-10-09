@@ -17,10 +17,10 @@ export const app = express();
 |--------------------------------------------------------------------------
 */
 
-const origensPermitidas = [
-  'http://localhost:3000',
-  'http://192.168.0.87:3000',
-];
+const origensPermitidas = env.CORS_ORIGINS
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
