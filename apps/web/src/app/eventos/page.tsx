@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Download, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Download, Loader2, Plus, Pencil, Trash2, ChevronDown, Settings2 } from 'lucide-react';
 
 import { Shell } from '@/components/Shell';
 import { Card } from '@/components/Card';
@@ -175,6 +175,7 @@ export default function Eventos() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [admin, setAdmin] = useState(false);
+  const [acoesAbertas, setAcoesAbertas] = useState<string[]>([]);
 
   const [modalAberto, setModalAberto] = useState(false);
   const [eventoEditando, setEventoEditando] =
@@ -950,11 +951,28 @@ export default function Eventos() {
                   )}
                 </div>
 
-                <div className="mt-8 flex flex-wrap gap-3">
+                {admin ? (
+                <div className="mt-8">
+                  <button
+                    type="button"
+                    aria-expanded={acoesAbertas.includes(evento.id)}
+                    aria-controls={`acoes-evento-${evento.id}`}
+                    onClick={() => setAcoesAbertas((atuais) =>
+                      atuais.includes(evento.id)
+                        ? atuais.filter((id) => id !== evento.id)
+                        : [...atuais, evento.id]
+                    )}
+                    className="flex w-full items-center justify-between rounded-xl border border-[#DBB13F]/50 bg-[#DBB13F]/10 px-5 py-3 text-sm font-semibold text-[#DBB13F] transition hover:bg-[#DBB13F]/20"
+                  >
+                    <span className="flex items-center gap-2"><Settings2 size={17} /> AÇÕES DO EVENTO</span>
+                    <ChevronDown size={18} className={`transition-transform duration-200 ${acoesAbertas.includes(evento.id) ? 'rotate-180' : ''}`} />
+                  </button>
+                  {acoesAbertas.includes(evento.id) && (
+                    <div id={`acoes-evento-${evento.id}`} className="mt-3 flex w-full flex-col items-stretch gap-3 border-t border-white/10 pt-3">
                   {evento.status === 'PUBLISHED' && (
                     <Link
                       href={`/eventos/disponibilidade/${evento.id}`}
-                      className="inline-block rounded-xl border border-[#DBB13F] px-5 py-3 text-sm text-[#DBB13F] transition hover:bg-[#DBB13F] hover:text-black"
+                      className="flex w-full items-center justify-center rounded-xl border border-[#DBB13F] px-5 py-3 text-center text-sm text-[#DBB13F] transition hover:bg-[#DBB13F] hover:text-black"
                     >
                       VER DISPONIBILIDADE
                     </Link>
@@ -967,7 +985,7 @@ export default function Eventos() {
                       disabled={
                         excluindoId === evento.id
                       }
-                      className="flex items-center gap-2 rounded-xl border border-white/20 px-5 py-3 text-sm text-white/80 transition hover:border-[#DBB13F] hover:text-[#DBB13F] disabled:opacity-40"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 px-5 py-3 text-sm text-white/80 transition hover:border-[#DBB13F] hover:text-[#DBB13F] disabled:opacity-40"
                     >
                       <Pencil size={15} />
                       EDITAR EVENTO
@@ -982,7 +1000,7 @@ export default function Eventos() {
                           void excluirEvento(evento)
                         }
                         disabled={excluindoId !== null}
-                        className="flex items-center gap-2 rounded-xl border border-red-500/40 px-5 py-3 text-sm text-red-400 transition hover:bg-red-500/10 disabled:opacity-40"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/40 px-5 py-3 text-sm text-red-400 transition hover:bg-red-500/10 disabled:opacity-40"
                       >
                         <Trash2 size={15} />
                         {excluindoId === evento.id
@@ -999,7 +1017,7 @@ export default function Eventos() {
                         void exportarConfirmados(evento)
                       }
                       disabled={exportandoId !== null}
-                      className="flex items-center gap-2 rounded-xl border border-[#DBB13F]/60 bg-[#DBB13F]/10 px-5 py-3 text-sm font-medium text-[#DBB13F] transition hover:bg-[#DBB13F]/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#DBB13F]/60 bg-[#DBB13F]/10 px-5 py-3 text-sm font-medium text-[#DBB13F] transition hover:bg-[#DBB13F]/20 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {exportandoId === evento.id ? (
                         <Loader2
@@ -1015,7 +1033,19 @@ export default function Eventos() {
                         : 'EXPORTAR CONFIRMADOS'}
                     </button>
                   )}
+                    </div>
+                  )}
                 </div>
+                ) : evento.status === 'PUBLISHED' ? (
+                  <div className="mt-8">
+                    <Link
+                      href={`/eventos/disponibilidade/${evento.id}`}
+                      className="flex w-full items-center justify-center rounded-xl border border-[#DBB13F] px-5 py-3 text-center text-sm text-[#DBB13F] transition hover:bg-[#DBB13F] hover:text-black"
+                    >
+                      VER DISPONIBILIDADE
+                    </Link>
+                  </div>
+                ) : null}
               </Card>
             ))}
           </div>
