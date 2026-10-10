@@ -113,3 +113,82 @@ authRouter.post('/login', async (req, res) => {
         });
     }
 });
+
+/* =========================================================
+   CADASTRO DE USUÁRIO
+   POST /auth/register
+========================================================= */
+
+const cadastroSchema = z.object({
+    name: z.string().trim().min(2, 'Informe seu nome.').max(150),
+    email: z.string().trim().email('E-mail inválido.'),
+    password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres.'),
+});
+
+authRouter.post('/register', async (req, res) => {
+    const entrada = cadastroSchema.safeParse(req.body);
+
+    if (!entrada.success) {
+        return res.status(400).json({
+            message: entrada.error.issues[0]?.message || 'Dados inválidos.',
+        });
+    }
+
+    const name = entrada.data.name;
+    const email = entrada.data.email.toLowerCase();
+    const password = entrada.data.password;
+
+    try {
+        const existente = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true },
+        });
+
+        if (existente) {
+            return res.status(409).json({
+                message: 'Este e-mail já está cadastrado.',
+            });
+        }
+
+        const passwordHash = await argon2.hash(password);
+
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email,
+                passwordHash,
+                role: 'MEMBER',
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+            },
+        });
+
+        return res.status(201).json({
+            message: 'Cadastro realizado com sucesso! Você já pode entrar.',
+            user,
+        });
+    } catch (error) {
+        // Evita erro 500 quando dois cadastros tentam
+        // utilizar o mesmo e-mail simultaneamente.
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'P2002'
+        ) {
+            return res.status(409).json({
+                message: 'Este e-mail já está cadastrado.',
+            });
+        }
+
+        console.error('Erro ao cadastrar usuário:', error);
+
+        return res.status(500).json({
+            message: 'Não foi possível concluir o cadastro.',
+        });
+    }
+});

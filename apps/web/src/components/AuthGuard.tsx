@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 const ROTAS_PUBLICAS = [
     '/',
     '/login',
+    '/cadastro',
     '/recuperar-senha',
 ];
 

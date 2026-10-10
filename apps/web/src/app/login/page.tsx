@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const API_URL =
     process.env.NEXT_PUBLIC_API_URL ||
@@ -340,6 +341,15 @@ export default function Login() {
                             ? 'ENTRANDO...'
                             : 'ENTRAR'}
                     </button>
+                    <p className="text-center text-sm text-white/50 mt-7">
+                        Ainda não possui uma conta?{' '}
+                        <Link
+                            href="/cadastro"
+                            className="text-[#DBB13F] hover:text-[#D8BC7A] font-medium transition"
+                        >
+                            Cadastre-se
+                        </Link>
+                    </p>
 
                 </form>
 
