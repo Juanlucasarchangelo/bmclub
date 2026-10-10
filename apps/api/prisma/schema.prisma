@@ -47,19 +47,30 @@ model Company {
   updatedAt DateTime @updatedAt
 }
 
+
 model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
   passwordHash String
 
+  // Dados pessoais
+  cpf   String? @unique @db.VarChar(11)
+  phone String? @db.VarChar(20)
+
+  // Preferências e restrições alimentares
+  dietaryRestrictions String? @db.Text
+
+  // Permissões e situação da conta
   role      UserRole @default(MEMBER)
   active    Boolean  @default(true)
   deletedAt DateTime?
 
+  // Empresa vinculada
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
+  // Relacionamentos
   registrations EventRegistration[]
   reservations  Reservation[]
   refreshTokens RefreshToken[]
@@ -70,6 +81,7 @@ model User {
   @@index([role, active])
   @@index([companyId])
 }
+
 
 model RefreshToken {
   id        String    @id @default(cuid())

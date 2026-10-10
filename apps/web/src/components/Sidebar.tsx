@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import {
   CalendarDays,
   Clapperboard,
+  DoorOpen,
   LayoutDashboard,
   LogOut,
   Shield,
@@ -23,11 +24,36 @@ type SidebarProps = {
 };
 
 const links = [
-  { href: '/inicio', label: 'Início', Icon: LayoutDashboard },
-  { href: '/eventos', label: 'Eventos', Icon: CalendarDays },
-  { href: '/reservas', label: 'Minhas reservas', Icon: TicketCheck },
-  { href: '/salas', label: 'Salas', Icon: UserRound },
-  { href: '/atmos', label: 'ATMOS', Icon: Clapperboard },
+  {
+    href: '/inicio',
+    label: 'Início',
+    Icon: LayoutDashboard,
+  },
+  {
+    href: '/eventos',
+    label: 'Eventos',
+    Icon: CalendarDays,
+  },
+  {
+    href: '/reservas',
+    label: 'Minhas reservas',
+    Icon: TicketCheck,
+  },
+  {
+    href: '/salas',
+    label: 'Salas',
+    Icon: DoorOpen,
+  },
+  {
+    href: '/atmos',
+    label: 'ATMOS',
+    Icon: Clapperboard,
+  },
+  {
+    href: '/perfil',
+    label: 'Meu Perfil',
+    Icon: UserRound,
+  },
   {
     href: '/admin',
     label: 'Administração',
@@ -93,15 +119,18 @@ export function Sidebar({
           : 'fixed left-0 top-0 hidden h-screen w-64 flex-col border-r border-white/10 bg-[#080808] p-6 md:flex'
       }
     >
+      {/* LOGOTIPO */}
       <div className="mb-10">
         <div className="text-2xl font-semibold tracking-[.18em] text-[#DBB13F]">
           BMCLUB
         </div>
+
         <div className="mt-1 text-[10px] tracking-[.35em] text-white/45">
           BRASIL
         </div>
       </div>
 
+      {/* MENU DE NAVEGAÇÃO */}
       <nav className="flex-1 space-y-2">
         {linksVisiveis.map(({ href, label, Icon }) => {
           const ativo =
@@ -121,12 +150,14 @@ export function Sidebar({
                 }`}
             >
               <Icon size={18} />
-              {label}
+
+              <span>{label}</span>
             </Link>
           );
         })}
       </nav>
 
+      {/* LOGOUT */}
       <div className="mt-8 border-t border-white/10 pt-5">
         <button
           type="button"
@@ -134,7 +165,8 @@ export function Sidebar({
           className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
         >
           <LogOut size={18} />
-          Sair da conta
+
+          <span>Sair da conta</span>
         </button>
       </div>
     </aside>

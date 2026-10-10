@@ -63,10 +63,6 @@ type Intervalo = {
     endsAt: Date;
 };
 
-type RegistroAgenda = Intervalo & {
-    spaceId: string;
-};
-
 class ErroReserva extends Error {
     constructor(
         public codigo: 'SPACE' | 'CAPACITY' | 'CONFLICT',
@@ -182,14 +178,19 @@ function identificarTipo(
     return null;
 }
 
-function capacidadeMaxima(tipo: TipoEspaco): number | null {
+function capacidadeMaxima(
+    tipo: TipoEspaco
+): number | null {
     switch (tipo) {
         case 'BALCAO':
             return 2;
+
         case 'MESA':
             return 10;
+
         case 'PRIVADO':
             return 30;
+
         case 'SALA':
             return null;
     }
@@ -257,6 +258,8 @@ function calcularPicoSimultaneo(
         });
     }
 
+    // Términos são processados antes de inícios
+    // quando acontecem no mesmo instante.
     eventos.sort(
         (a, b) =>
             a.instante - b.instante ||
@@ -284,30 +287,47 @@ async function consultarAgenda(
     inicio: Date,
     fim: Date
 ) {
-    // ATMOS precisa consultar Balcão, Mesa e Privado,
-    // pois existem regras de exclusividade entre eles.
+    // Regra global:
     //
-    // SALA consulta somente a própria sala.
+    // PRIVADO precisa consultar todos os espaços.
+    //
+    // BALCAO e MESA precisam consultar os ambientes
+    // ATMOS, inclusive PRIVADO.
+    //
+    // SALA precisa consultar a própria sala e PRIVADO.
+    //
+    // Isso mantém as categorias separadas na interface,
+    // mas conectadas nas regras de disponibilidade.
 
-    const relacionados =
-        espaco.category === 'ATMOS'
-            ? await banco.space.findMany({
-                where: {
-                    category: 'ATMOS',
-                },
-                select: {
-                    id: true,
-                    name: true,
-                    category: true,
-                },
-            })
-            : [
-                {
-                    id: espaco.id,
-                    name: espaco.name,
-                    category: espaco.category,
-                },
-            ];
+    const tipo = identificarTipo(espaco);
+
+    const relacionados = await banco.space.findMany({
+        where:
+            tipo === 'PRIVADO'
+                ? {
+                    category: {
+                        in: ['ATMOS', 'SALA'],
+                    },
+                }
+                : tipo === 'SALA'
+                    ? {
+                        OR: [
+                            { id: espaco.id },
+                            {
+                                category: 'ATMOS',
+                                name: 'Privado',
+                            },
+                        ],
+                    }
+                    : {
+                        category: 'ATMOS',
+                    },
+        select: {
+            id: true,
+            name: true,
+            category: true,
+        },
+    });
 
     const ids = relacionados.map(item => item.id);
 
@@ -430,10 +450,22 @@ async function verificarDisponibilidade(
         };
     }
 
-    // Privado é exclusivo:
-    // não pode coincidir com Balcão ou Mesa.
+    // ==================================================
+    // EXCLUSIVIDADE GLOBAL DO PRIVADO
+    // ==================================================
     //
-    // Balcão e Mesa podem funcionar simultaneamente.
+    // 1. PRIVADO bloqueia qualquer outro ambiente.
+    //
+    // 2. Uma reserva existente em qualquer ambiente
+    //    impede reservar PRIVADO no mesmo período.
+    //
+    // 3. SALAS continuam independentes entre si.
+    //
+    // 4. BALCAO e MESA mantêm seus limites.
+    //
+    // 5. A regra vale apenas para períodos sobrepostos.
+    // ==================================================
+
     const conflitoExclusividade = agenda.reservas.some(
         reserva => {
             if (!sobrepoe(reserva, inicio, fim)) {
@@ -444,22 +476,15 @@ async function verificarDisponibilidade(
                 reserva.spaceId
             );
 
+            // Reservar Privado exige que nenhum
+            // outro ambiente esteja reservado.
             if (tipo === 'PRIVADO') {
-                return (
-                    tipoReservado === 'BALCAO' ||
-                    tipoReservado === 'MESA' ||
-                    tipoReservado === 'PRIVADO'
-                );
+                return true;
             }
 
-            if (
-                tipo === 'BALCAO' ||
-                tipo === 'MESA'
-            ) {
-                return tipoReservado === 'PRIVADO';
-            }
-
-            return false;
+            // Qualquer outro ambiente fica indisponível
+            // enquanto houver uma reserva do Privado.
+            return tipoReservado === 'PRIVADO';
         }
     );
 
@@ -468,11 +493,15 @@ async function verificarDisponibilidade(
             disponivel: false,
             motivo:
                 tipo === 'PRIVADO'
-                    ? 'O espaço Privado não pode ser reservado enquanto Balcão ou Mesa estiverem ocupados.'
-                    : 'O espaço Privado está reservado neste período.',
+                    ? 'O Privado exige exclusividade. Já existe uma reserva em outro ambiente neste período.'
+                    : 'O espaço Privado está reservado neste período. Todos os ambientes estão indisponíveis.',
             vagasRestantes: 0,
         };
     }
+
+    // ==================================================
+    // REGRAS INDIVIDUAIS DOS ESPAÇOS
+    // ==================================================
 
     const reservasDoEspaco = agenda.reservas.filter(
         reserva => reserva.spaceId === espaco.id
@@ -719,7 +748,7 @@ atmosRouter.get(
 // Regras:
 // BALCÃO: 2 pessoas / até 3 reservas simultâneas
 // MESA: 10 pessoas / 1 reserva simultânea
-// PRIVADO: 30 pessoas / exclusivo
+// PRIVADO: 30 pessoas / exclusividade global
 // SALA: capacidade cadastrada / 1 reserva
 // ======================================================
 
@@ -765,45 +794,28 @@ atmosRouter.post(
         try {
             const reserva = await prisma.$transaction(
                 async tx => {
-                    // Primeiro localizamos a categoria.
-                    const espacoInicial =
-                        await tx.space.findUnique({
-                            where: {
-                                id: dados.spaceId,
-                            },
-                        });
+                    // ==================================================
+                    // LOCK GLOBAL
+                    // ==================================================
+                    //
+                    // Todas as reservas compartilham o mesmo
+                    // bloqueio transacional, seja SALA ou ATMOS.
+                    //
+                    // Isso evita que duas transações simultâneas
+                    // criem reservas incompatíveis com a
+                    // exclusividade do Privado.
+                    //
+                    // MySQL/InnoDB: SELECT ... FOR UPDATE.
+                    // ==================================================
 
-                    if (!espacoInicial?.active) {
-                        throw new ErroReserva(
-                            'SPACE',
-                            'Espaço indisponível.'
-                        );
-                    }
+                    await tx.$queryRaw`
+                        SELECT id
+                        FROM Space
+                        ORDER BY id
+                        FOR UPDATE
+                    `;
 
-                    if (
-                        espacoInicial.category === 'ATMOS'
-                    ) {
-                        // Bloqueia todos os espaços ATMOS.
-                        // Evita duas reservas concorrentes
-                        // ultrapassarem os limites.
-                        await tx.$queryRaw`
-              SELECT id
-              FROM Space
-              WHERE category = 'ATMOS'
-              ORDER BY id
-              FOR UPDATE
-            `;
-                    } else {
-                        // Salas são independentes.
-                        await tx.$queryRaw`
-              SELECT id
-              FROM Space
-              WHERE id = ${dados.spaceId}
-              FOR UPDATE
-            `;
-                    }
-
-                    // Reconsulta depois de obter o lock.
+                    // Reconsulta o espaço depois do lock.
                     const espaco =
                         await tx.space.findUnique({
                             where: {
@@ -818,6 +830,8 @@ atmosRouter.post(
                         );
                     }
 
+                    // Validação definitiva dentro
+                    // da mesma transação.
                     const disponibilidade =
                         await verificarDisponibilidade(
                             tx,

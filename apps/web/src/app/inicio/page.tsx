@@ -114,19 +114,42 @@ export default function Home() {
         void carregar();
     }, [carregar]);
 
-    // Último evento publicado.
+
+    // ======================================================
+    // PRÓXIMO EVENTO EM DESTAQUE
+    // ======================================================
+    //
+    // Exibe o evento publicado com a data de início
+    // mais próxima do momento atual.
+    //
+    // Eventos que já começaram não aparecem.
+    // A data de cadastro não interfere na seleção.
+    // ======================================================
+
     const destaque = useMemo(() => {
-        return [...eventos].sort((a, b) => {
-            const dataA = new Date(
-                a.createdAt || a.startsAt
-            ).getTime();
+        const agora = Date.now();
 
-            const dataB = new Date(
-                b.createdAt || b.startsAt
-            ).getTime();
+        return eventos
+            .filter((evento) => {
+                if (evento.status !== 'PUBLISHED') {
+                    return false;
+                }
 
-            return dataB - dataA;
-        })[0];
+                const inicio = new Date(
+                    evento.startsAt
+                ).getTime();
+
+                return (
+                    Number.isFinite(inicio) &&
+                    inicio > agora
+                );
+            })
+            .sort((a, b) => {
+                return (
+                    new Date(a.startsAt).getTime() -
+                    new Date(b.startsAt).getTime()
+                );
+            })[0];
     }, [eventos]);
 
     const acessos = [

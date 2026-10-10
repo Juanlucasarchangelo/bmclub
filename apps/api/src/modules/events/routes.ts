@@ -566,6 +566,167 @@ eventsRouter.post(
   }
 );
 
+/* ======================================================
+   EXPORTAR PARTICIPANTES CONFIRMADOS
+   GET /eventos/:id/confirmados
+
+   Acesso exclusivo para administradores.
+
+   Retorna membros e acompanhantes confirmados,
+   incluindo as restrições alimentares registradas
+   no perfil de cada membro.
+====================================================== */
+
+eventsRouter.get(
+  '/:id/confirmados',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const eventId = obterId(req.params.id);
+
+    if (!eventId) {
+      return res.status(400).json({
+        message: 'ID do evento inválido.',
+      });
+    }
+
+    try {
+      // 1. Verificar se o evento existe.
+      const evento = await prisma.event.findUnique({
+        where: {
+          id: eventId,
+        },
+        select: {
+          id: true,
+          title: true,
+          startsAt: true,
+          location: true,
+          status: true,
+        },
+      });
+
+      if (!evento) {
+        return res.status(404).json({
+          message: 'Evento não encontrado.',
+        });
+      }
+
+      // 2. Consultar somente inscrições confirmadas.
+      const inscricoes =
+        await prisma.eventRegistration.findMany({
+          where: {
+            eventId,
+            status: 'CONFIRMED',
+          },
+
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                cpf: true,
+                role: true,
+                dietaryRestrictions: true,
+              },
+            },
+
+            guests: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+              },
+
+              orderBy: {
+                name: 'asc',
+              },
+            },
+          },
+
+          orderBy: {
+            createdAt: 'asc',
+          },
+        });
+
+      // 3. Criar uma lista com uma pessoa por linha.
+      const participantes: Array<{
+        name: string;
+        type: 'MEMBER' | 'COMPANY' | 'GUEST';
+        email: string | null;
+        phone: string | null;
+        cpf: string | null;
+        dietaryRestrictions: string | null;
+        responsibleName: string | null;
+      }> = [];
+
+      for (const inscricao of inscricoes) {
+        const membro = inscricao.user;
+
+        // Titular da inscrição.
+        participantes.push({
+          name: membro.name,
+          type:
+            membro.role === 'COMPANY'
+              ? 'COMPANY'
+              : 'MEMBER',
+          email: membro.email,
+          phone: membro.phone,
+          cpf: membro.cpf,
+          dietaryRestrictions:
+            membro.dietaryRestrictions,
+          responsibleName: null,
+        });
+
+        // Acompanhantes cadastrados na inscrição.
+        for (const convidado of inscricao.guests) {
+          participantes.push({
+            name: convidado.name,
+            type: 'GUEST',
+            email: convidado.email,
+            phone: convidado.phone,
+            cpf: null,
+
+            // O acompanhante não possui este campo
+            // no modelo Guest. Não copiar as
+            // restrições alimentares do titular.
+            dietaryRestrictions: null,
+
+            responsibleName: membro.name,
+          });
+        }
+      }
+
+      // 4. Retornar os dados ao frontend.
+      return res.json({
+        evento: {
+          id: evento.id,
+          title: evento.title,
+          startsAt: evento.startsAt,
+          location: evento.location,
+        },
+
+        totalInscricoes: inscricoes.length,
+        totalParticipantes: participantes.length,
+
+        participantes,
+      });
+    } catch (error) {
+      console.error(
+        'Erro ao consultar participantes confirmados:',
+        error
+      );
+
+      return res.status(500).json({
+        message:
+          'Não foi possível consultar os participantes confirmados.',
+      });
+    }
+  }
+);
+
 // ======================================================
 // BUSCAR UM EVENTO
 // GET /eventos/:id

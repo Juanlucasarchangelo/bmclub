@@ -10,6 +10,7 @@ import { spacesRouter } from './modules/spaces/routes.js';
 import { reservationsRouter } from './modules/reservations/routes.js';
 import { adminRouter } from './modules/admin/routes.js';
 import { atmosRouter } from './modules/atmos/routes.js';
+import { profileRouter } from './modules/profile/routes.js';
 
 import {
   uploadsRouter,
@@ -110,5 +111,6 @@ app.use('/admin', adminRouter);
 
 app.use('/atmos', atmosRouter);
 
-// Upload de imagens: POST /uploads
 app.use('/uploads', uploadsRouter);
+
+app.use('/perfil', profileRouter);
