@@ -135,20 +135,23 @@ export default function Login() {
                     </div>
                 </div>
 
+
                 <div>
                     <h1 className="text-6xl font-light max-w-xl leading-tight">
                         Experiências que vão além do acesso.
                     </h1>
 
-                    <p className="text-white/40 mt-6 max-w-md">
-                        Eventos, experiências e benefícios exclusivos
-                        para membros BMClub.
-                    </p>
+                    {/* QR CODE BMCLUB */}
+                    <div className="mt-8">
+                        <div className="inline-block rounded-2xl border border-[#DBB13F]/30 bg-white p-3 shadow-[0_0_35px_rgba(219,177,63,0.12)]">
+                            <img
+                                src="/images/qrcode-bmclub.jpg"
+                                alt="QR Code BMClub Brasil"
+                                className="h-80 w-80 object-contain"
+                            />
+                        </div>
+                    </div>
                 </div>
-
-                <p className="text-xs text-white/25">
-                    BMClub Brasil
-                </p>
             </section>
 
 
