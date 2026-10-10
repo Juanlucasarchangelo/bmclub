@@ -178,6 +178,10 @@ Utilize o administrador configurado pelo seed do projeto.
 
 ---
 
+# Usuário padrão para login
+- E-mail: admin@bmclub.com.br
+- Senha:  BMClub@2026
+
 <div align="center">
   <strong>BMClub Brasil</strong>
   <p>Experiências exclusivas, gestão inteligente.</p>
