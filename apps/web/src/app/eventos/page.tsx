@@ -172,6 +172,7 @@ function formatarCpfMascarado(cpf?: string | null) {
 
 export default function Eventos() {
   const [eventos, setEventos] = useState<Evento[]>([]);
+  const [agora, setAgora] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [admin, setAdmin] = useState(false);
@@ -202,6 +203,11 @@ export default function Eventos() {
   const [exportandoId, setExportandoId] = useState<
     string | null
   >(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     for (const chave of ['bmclub_user', 'bmclub_usuario']) {
@@ -759,6 +765,15 @@ export default function Eventos() {
     }
   }
 
+  const proximos = eventos.filter((evento) =>
+    evento.status !== 'FINISHED' && new Date(evento.endsAt).getTime() > agora
+  );
+  const realizados = eventos
+    .filter((evento) =>
+      evento.status === 'FINISHED' || new Date(evento.endsAt).getTime() <= agora
+    )
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+
   return (
     <Shell>
       <div className="mb-8 flex flex-wrap items-start justify-between gap-5">
@@ -772,7 +787,7 @@ export default function Eventos() {
           </h1>
 
           <p className="text-white/45">
-            Conheça as próximas experiências BMClub.
+            Confira as próximas experiências e o histórico dos eventos realizados no BMClub.
           </p>
         </div>
 
@@ -862,8 +877,23 @@ export default function Eventos() {
       {!loading &&
         !erro &&
         eventos.length > 0 && (
-          <div className="grid gap-5 lg:grid-cols-2">
-            {eventos.map((evento) => (
+          <div className="space-y-12">
+            {([
+              { titulo: 'PRÓXIMOS EVENTOS', descricao: 'Experiências programadas no BMClub.', lista: proximos, realizado: false },
+              { titulo: 'EVENTOS REALIZADOS', descricao: 'Confira os encontros que já aconteceram.', lista: realizados, realizado: true },
+            ] as const).map((grupo) => (
+              <section key={grupo.titulo}>
+                <div className="mb-5 border-b border-[#DBB13F]/25 pb-4">
+                  <h2 className="text-xl font-semibold tracking-[.12em] text-[#DBB13F]">{grupo.titulo}</h2>
+                  <p className="mt-2 text-sm text-white/45">{grupo.descricao}</p>
+                </div>
+                {grupo.lista.length === 0 ? (
+                  <p className="rounded-xl border border-white/10 bg-[#111111] p-6 text-sm text-white/50">
+                    {grupo.realizado ? 'Ainda não há eventos realizados.' : 'Não há próximos eventos agendados.'}
+                  </p>
+                ) : (
+                <div className="grid gap-5 lg:grid-cols-2">
+                {grupo.lista.map((evento) => (
               <Card key={evento.id}>
                 {evento.coverUrl && (
                   <div className="mb-5 overflow-hidden rounded-xl border border-white/10">
@@ -880,7 +910,9 @@ export default function Eventos() {
                     EVENTO BMCLUB
                   </p>
 
-                  {admin && (
+                  {grupo.realizado ? (
+                    <span className="rounded-full border border-[#DBB13F]/40 px-3 py-1 text-[10px] text-[#D8BC7A]">REALIZADO</span>
+                  ) : admin && (
                     <span
                       className={`rounded-full border px-3 py-1 text-[10px] ${evento.status === 'PUBLISHED'
                           ? 'border-green-500/30 text-green-400'
@@ -938,7 +970,7 @@ export default function Eventos() {
                     </span>
                   </p>
 
-                  {evento.seatsAvailable != null && (
+                  {!grupo.realizado && evento.seatsAvailable != null && (
                     <p>
                       <span className="text-white/35">
                         Vagas disponíveis
@@ -969,7 +1001,7 @@ export default function Eventos() {
                   </button>
                   {acoesAbertas.includes(evento.id) && (
                     <div id={`acoes-evento-${evento.id}`} className="mt-3 flex w-full flex-col items-stretch gap-3 border-t border-white/10 pt-3">
-                  {evento.status === 'PUBLISHED' && (
+                  {!grupo.realizado && evento.status === 'PUBLISHED' && (
                     <Link
                       href={`/eventos/disponibilidade/${evento.id}`}
                       className="flex w-full items-center justify-center rounded-xl border border-[#DBB13F] px-5 py-3 text-center text-sm text-[#DBB13F] transition hover:bg-[#DBB13F] hover:text-black"
@@ -1036,7 +1068,7 @@ export default function Eventos() {
                     </div>
                   )}
                 </div>
-                ) : evento.status === 'PUBLISHED' ? (
+                ) : !grupo.realizado && evento.status === 'PUBLISHED' ? (
                   <div className="mt-8">
                     <Link
                       href={`/eventos/disponibilidade/${evento.id}`}
@@ -1047,6 +1079,10 @@ export default function Eventos() {
                   </div>
                 ) : null}
               </Card>
+            ))}
+                </div>
+                )}
+              </section>
             ))}
           </div>
         )}

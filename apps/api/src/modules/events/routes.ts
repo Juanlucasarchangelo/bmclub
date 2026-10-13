@@ -118,7 +118,7 @@ async function requireAdmin(
 // LISTAR EVENTOS
 // GET /eventos
 //
-// Visitantes: apenas publicados.
+// Visitantes: publicados e finalizados (inclusive histórico).
 // ADMIN autenticado: todos os eventos.
 //
 // A autenticação é opcional nesta rota.
@@ -160,7 +160,7 @@ eventsRouter.get('/', async (req, res) => {
     const eventos = await prisma.event.findMany({
       where: admin
         ? {}
-        : { status: 'PUBLISHED' },
+        : { status: { in: ['PUBLISHED', 'FINISHED'] } },
       orderBy: {
         startsAt: 'asc',
       },
