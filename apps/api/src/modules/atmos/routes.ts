@@ -12,8 +12,10 @@ export const atmosRouter = Router();
 // CONFIGURAÇÕES
 // ======================================================
 
-const HORA_ABERTURA = 9 * 60;
-const HORA_FECHAMENTO = 21 * 60;
+const ABERTURA_ATMOS = 7 * 60;
+const ABERTURA_SALA = 9 * 60;
+const FECHAMENTO_ATMOS = 23 * 60;
+const FECHAMENTO_SALA = 21 * 60;
 
 const dataSchema = z.string().regex(
     /^\d{4}-\d{2}-\d{2}$/,
@@ -65,7 +67,7 @@ type Intervalo = {
 
 class ErroReserva extends Error {
     constructor(
-        public codigo: 'SPACE' | 'CAPACITY' | 'CONFLICT',
+        public codigo: 'SPACE' | 'CAPACITY' | 'CONFLICT' | 'PERIOD',
         mensagem: string
     ) {
         super(mensagem);
@@ -107,7 +109,8 @@ function dataExiste(data: string): boolean {
 function validarPeriodo(
     data: string,
     inicio: string,
-    fim: string
+    fim: string,
+    categoria: Categoria
 ): string | null {
     if (!dataExiste(data)) {
         return 'Data inválida.';
@@ -122,11 +125,13 @@ function validarPeriodo(
     const inicioMin = minutos(inicio);
     const fimMin = minutos(fim);
 
-    if (
-        inicioMin < HORA_ABERTURA ||
-        fimMin > HORA_FECHAMENTO
-    ) {
-        return 'O funcionamento é das 09h00 às 21h00.';
+    const abertura = categoria === 'ATMOS' ? ABERTURA_ATMOS : ABERTURA_SALA;
+    const fechamento = categoria === 'ATMOS' ? FECHAMENTO_ATMOS : FECHAMENTO_SALA;
+
+    if (inicioMin < abertura || fimMin > fechamento) {
+        return categoria === 'ATMOS'
+            ? 'O funcionamento do ATMOS é das 07h00 às 23h00.'
+            : 'O funcionamento das salas é das 09h00 às 21h00.';
     }
 
     if (fimMin <= inicioMin) {
@@ -699,7 +704,8 @@ atmosRouter.get(
                 const erroPeriodo = validarPeriodo(
                     data,
                     inicio,
-                    fim
+                    fim,
+                    espaco.category
                 );
 
                 if (erroPeriodo) {
@@ -723,8 +729,8 @@ atmosRouter.get(
             return res.json({
                 spaceId,
                 data,
-                abertura: '09:00',
-                fechamento: '21:00',
+                abertura: espaco.category === 'ATMOS' ? '07:00' : '09:00',
+                fechamento: espaco.category === 'ATMOS' ? '23:00' : '21:00',
                 intervalosOcupados,
                 ...(resultadoDisponibilidade ?? {}),
             });
@@ -768,18 +774,6 @@ atmosRouter.post(
         }
 
         const dados = entrada.data;
-
-        const erroPeriodo = validarPeriodo(
-            dados.data,
-            dados.inicio,
-            dados.fim
-        );
-
-        if (erroPeriodo) {
-            return res.status(400).json({
-                message: erroPeriodo,
-            });
-        }
 
         const startsAt = converterData(
             dados.data,
@@ -828,6 +822,16 @@ atmosRouter.post(
                             'SPACE',
                             'Espaço indisponível.'
                         );
+                    }
+
+                    const erroPeriodo = validarPeriodo(
+                        dados.data,
+                        dados.inicio,
+                        dados.fim,
+                        espaco.category
+                    );
+                    if (erroPeriodo) {
+                        throw new ErroReserva('PERIOD', erroPeriodo);
                     }
 
                     // Validação definitiva dentro
@@ -884,7 +888,7 @@ atmosRouter.post(
                     });
                 }
 
-                if (error.codigo === 'CAPACITY') {
+                if (error.codigo === 'CAPACITY' || error.codigo === 'PERIOD') {
                     return res.status(400).json({
                         message: error.message,
                     });

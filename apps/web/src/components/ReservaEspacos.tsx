@@ -86,6 +86,8 @@ export function ReservaEspacos({
 }) {
     const titulo =
         categoria === 'ATMOS' ? 'ATMOS CLUB' : 'SALAS';
+    const horarioAbertura = categoria === 'ATMOS' ? '07:00' : '09:00';
+    const horarioFechamento = categoria === 'ATMOS' ? '23:00' : '21:00';
 
     const carrosselRef = useRef<HTMLDivElement>(null);
     const arrastoRef = useRef({
@@ -410,8 +412,8 @@ export function ReservaEspacos({
         new Date(`${data}T12:00:00Z`).getUTCDay() === 0;
 
     const foraDoHorario =
-        inicio < '09:00' ||
-        fim > '21:00' ||
+        inicio < horarioAbertura ||
+        fim > horarioFechamento ||
         fim <= inicio;
 
     const inicioData = new Date(
@@ -508,7 +510,9 @@ export function ReservaEspacos({
 
             <p className="text-white/45 mt-3 mb-8">
                 Escolha seu espaço, data e horário.
-                Segunda a sábado, das 09h00 às 21h00.
+                {categoria === 'ATMOS'
+                    ? ' Segunda a sábado, das 07h00 às 23h00.'
+                    : ' Segunda a sábado, das 09h00 às 21h00.'}
             </p>
 
             {loading ? (
@@ -772,6 +776,8 @@ export function ReservaEspacos({
                                         </span>
                                         <input
                                             type="time"
+                                            min={horarioAbertura}
+                                            max={horarioFechamento}
                                             step="60"
                                             value={inicio}
                                             onChange={e => {
@@ -788,6 +794,8 @@ export function ReservaEspacos({
                                         </span>
                                         <input
                                             type="time"
+                                            min={horarioAbertura}
+                                            max={horarioFechamento}
                                             step="60"
                                             value={fim}
                                             onChange={e => {
@@ -878,7 +886,9 @@ export function ReservaEspacos({
                                         {domingo
                                             ? 'Domingos não estão disponíveis.'
                                             : foraDoHorario
-                                                ? 'Escolha um período entre 09h00 e 21h00.'
+                                                ? categoria === 'ATMOS'
+                                                    ? 'Escolha um período entre 07h00 e 23h00.'
+                                                    : 'Escolha um período entre 09h00 e 21h00.'
                                                 : passado
                                                     ? 'Escolha um horário futuro.'
                                                     : pessoasInvalidas
