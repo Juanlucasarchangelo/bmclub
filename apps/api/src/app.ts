@@ -11,6 +11,7 @@ import { reservationsRouter } from './modules/reservations/routes.js';
 import { adminRouter } from './modules/admin/routes.js';
 import { atmosRouter } from './modules/atmos/routes.js';
 import { profileRouter } from './modules/profile/routes.js';
+import { whatsappToolsRouter } from './modules/tools/whatsapp.routes.js';
 
 import {
   uploadsRouter,
@@ -114,3 +115,5 @@ app.use('/atmos', atmosRouter);
 app.use('/uploads', uploadsRouter);
 
 app.use('/perfil', profileRouter);
+
+app.use('/ferramentas/whatsapp', whatsappToolsRouter);
