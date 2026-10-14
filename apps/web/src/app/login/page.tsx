@@ -1,3 +1,4 @@
+
 'use client';
 
 import { FormEvent, useState } from 'react';
@@ -52,7 +53,7 @@ export default function Login() {
                 );
             }
 
-            /*
+            /**
              * Access Token
              *
              * O restante do sistema já procura
@@ -63,7 +64,7 @@ export default function Login() {
                 data.accessToken
             );
 
-            /*
+            /**
              * Dados básicos do usuário
              */
             localStorage.setItem(
@@ -71,7 +72,7 @@ export default function Login() {
                 JSON.stringify(data.user)
             );
 
-            /*
+            /**
              * Refresh Token
              *
              * Só guardamos permanentemente quando
@@ -88,7 +89,7 @@ export default function Login() {
                 );
             }
 
-            /*
+            /**
              * Login concluído.
              * Envia para Eventos.
              */
@@ -109,22 +110,28 @@ export default function Login() {
     }
 
     return (
-        <main className="min-h-screen grid lg:grid-cols-2 bg-[#080808] text-white">
+        <main className="min-h-screen grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] bg-[#080808] text-white">
 
             {/* LADO ESQUERDO */}
 
             <section
                 className="
-          hidden
-          lg:flex
-          p-16
-          flex-col
-          justify-between
-          border-r
-          border-white/10
-          bg-[radial-gradient(circle_at_20%_20%,rgba(219,177,63,.16),transparent_35%)]
-        "
+                    hidden
+                    lg:flex
+                    min-w-0
+                    flex-col
+                    justify-between
+                    gap-10
+                    p-8
+                    xl:p-12
+                    2xl:p-16
+                    border-r
+                    border-white/10
+                    bg-[radial-gradient(circle_at_20%_20%,rgba(219,177,63,.16),transparent_35%)]
+                "
             >
+                {/* IDENTIDADE BMCLUB */}
+
                 <div>
                     <div className="text-3xl tracking-[.2em] text-[#DBB13F]">
                         BMCLUB
@@ -135,25 +142,94 @@ export default function Login() {
                     </div>
                 </div>
 
+                {/* APRESENTAÇÃO E QR CODES */}
 
-                <div>
-                    <h1 className="text-6xl font-light max-w-xl leading-tight">
+                <div className="w-full max-w-4xl">
+
+                    <h1 className="text-4xl xl:text-5xl 2xl:text-6xl font-light max-w-2xl leading-tight">
                         Experiências que vão além do acesso.
                     </h1>
 
-                    {/* QR CODE BMCLUB */}
-                    <div className="mt-8">
-                        <div className="inline-block rounded-2xl border border-[#DBB13F]/30 bg-white p-3 shadow-[0_0_35px_rgba(219,177,63,0.12)]">
-                            <img
-                                src="/images/qrcode-bmclub.jpg"
-                                alt="QR Code BMClub Brasil"
-                                className="h-80 w-80 object-contain"
-                            />
-                        </div>
-                    </div>
-                </div>
-            </section>
+                    <p className="mt-4 text-sm xl:text-base text-white/50 max-w-xl leading-relaxed">
+                        Conecte-se à nossa rede e descubra todas as
+                        experiências do BMClub Brasil.
+                    </p>
 
+                    {/* QR CODES LADO A LADO */}
+
+                    <div className="mt-8 xl:mt-10 grid grid-cols-2 gap-4 xl:gap-8 items-start">
+
+                        {/* QR CODE WI-FI */}
+
+                        <div className="min-w-0 flex flex-col items-center text-center">
+
+                            <div className="mb-4 w-full">
+                                <div className="text-[#DBB13F] text-xs xl:text-sm font-semibold tracking-[.12em] uppercase">
+                                    01 · Conecte-se ao Wi-Fi
+                                </div>
+
+                                <p className="mt-2 text-xs xl:text-sm text-white/50 leading-relaxed">
+                                    Escaneie para conectar seu dispositivo
+                                    à nossa rede.
+                                </p>
+                            </div>
+
+                            <div className="w-full max-w-[340px] rounded-2xl border border-[#DBB13F]/30 bg-white p-3 xl:p-4 shadow-[0_0_35px_rgba(219,177,63,0.12)]">
+                                <img
+                                    src="/images/ImportsBR-WiFi.png"
+                                    alt="QR Code para conectar ao Wi-Fi da ImportsBR"
+                                    className="w-full aspect-square object-contain"
+                                />
+                            </div>
+
+                            <p className="mt-4 text-xs text-white/40">
+                                Aponte a câmera do celular
+                            </p>
+
+                        </div>
+
+                        {/* QR CODE BMCLUB */}
+
+                        <div className="min-w-0 flex flex-col items-center text-center">
+
+                            <div className="mb-4 w-full">
+                                <div className="text-[#DBB13F] text-xs xl:text-sm font-semibold tracking-[.12em] uppercase">
+                                    02 · Acesse o BMClub
+                                </div>
+
+                                <p className="mt-2 text-xs xl:text-sm text-white/50 leading-relaxed">
+                                    Escaneie para acessar nossa
+                                    plataforma exclusiva.
+                                </p>
+                            </div>
+
+                            <div className="w-full max-w-[340px] rounded-2xl border border-[#DBB13F]/30 bg-white p-3 xl:p-4 shadow-[0_0_35px_rgba(219,177,63,0.12)]">
+                                <img
+                                    src="/images/qrcode-bmclub.jpg"
+                                    alt="QR Code para acessar o aplicativo BMClub Brasil"
+                                    className="w-full aspect-square object-contain"
+                                />
+                            </div>
+
+                            <p className="mt-4 text-xs text-white/40">
+                                Abra o acesso no seu celular
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                {/* RODAPÉ INFORMATIVO */}
+
+                <div className="border-t border-white/10 pt-5">
+                    <p className="text-xs text-white/35 tracking-wide">
+                        BMClub Brasil · Conectando pessoas, espaços e experiências.
+                    </p>
+                </div>
+
+            </section>
 
             {/* LOGIN */}
 
@@ -176,7 +252,6 @@ export default function Login() {
                         </div>
                     </div>
 
-
                     <p className="text-[#DBB13F] text-xs tracking-[.3em]">
                         ÁREA EXCLUSIVA
                     </p>
@@ -184,7 +259,6 @@ export default function Login() {
                     <h2 className="text-4xl mt-3 mb-9">
                         Acesse sua conta
                     </h2>
-
 
                     {/* EMAIL */}
 
@@ -194,34 +268,27 @@ export default function Login() {
 
                     <input
                         value={email}
-
                         onChange={(e) =>
                             setEmail(e.target.value)
                         }
-
                         type="email"
-
                         autoComplete="email"
-
                         required
-
                         placeholder="seu@email.com"
-
                         className="
-              w-full
-              mt-2
-              mb-5
-              bg-[#111111]
-              border
-              border-white/10
-              rounded-xl
-              p-4
-              outline-none
-              focus:border-[#DBB13F]
-              transition
-            "
+                            w-full
+                            mt-2
+                            mb-5
+                            bg-[#111111]
+                            border
+                            border-white/10
+                            rounded-xl
+                            p-4
+                            outline-none
+                            focus:border-[#DBB13F]
+                            transition
+                        "
                     />
-
 
                     {/* SENHA */}
 
@@ -240,6 +307,7 @@ export default function Login() {
                             placeholder="Sua senha"
                             className="w-full bg-[#111111] border border-white/10 rounded-xl p-4 pr-14 outline-none focus:border-[#DBB13F] transition"
                         />
+
                         <button
                             type="button"
                             onClick={() => setMostrarSenha((anterior) => !anterior)}
@@ -264,31 +332,24 @@ export default function Login() {
                         </button>
                     </div>
 
-
                     {/* OPÇÕES */}
 
                     <div className="flex justify-between items-center text-xs text-white/45 my-5">
 
                         <label className="flex items-center gap-2 cursor-pointer">
-
                             <input
                                 type="checkbox"
-
                                 checked={manterConectado}
-
                                 onChange={(e) =>
                                     setManterConectado(
                                         e.target.checked
                                     )
                                 }
-
                                 className="accent-[#DBB13F]"
                             />
 
                             Manter conectado
-
                         </label>
-
 
                         <button
                             type="button"
@@ -299,19 +360,18 @@ export default function Login() {
 
                     </div>
 
-
                     {/* ERRO */}
 
                     {error && (
                         <div
                             className="
-                mb-5
-                border
-                border-red-500/20
-                bg-red-500/10
-                rounded-xl
-                p-4
-              "
+                                mb-5
+                                border
+                                border-red-500/20
+                                bg-red-500/10
+                                rounded-xl
+                                p-4
+                            "
                         >
                             <p className="text-red-400 text-sm">
                                 {error}
@@ -319,31 +379,29 @@ export default function Login() {
                         </div>
                     )}
 
-
                     {/* ENTRAR */}
 
                     <button
                         type="submit"
-
                         disabled={loading}
-
                         className="
-              w-full
-              bg-[#DBB13F]
-              text-black
-              font-semibold
-              rounded-xl
-              p-4
-              hover:bg-[#D8BC7A]
-              transition
-              disabled:opacity-50
-              disabled:cursor-not-allowed
-            "
+                            w-full
+                            bg-[#DBB13F]
+                            text-black
+                            font-semibold
+                            rounded-xl
+                            p-4
+                            hover:bg-[#D8BC7A]
+                            transition
+                            disabled:opacity-50
+                            disabled:cursor-not-allowed
+                        "
                     >
                         {loading
                             ? 'ENTRANDO...'
                             : 'ENTRAR'}
                     </button>
+
                     <p className="text-center text-sm text-white/50 mt-7">
                         Ainda não possui uma conta?{' '}
                         <Link
