@@ -78,6 +78,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  whatsAppCampaigns WhatsAppCampaign[] @relation("WhatsAppCampaignAuthor")
+
   @@index([role, active])
   @@index([companyId])
 }
@@ -187,4 +189,45 @@ model BlockedPeriod {
   createdAt DateTime @default(now())
 
   @@index([spaceId, startsAt, endsAt])
+}
+
+
+model WhatsAppCampaign {
+  id             String   @id @default(cuid())
+  title          String   @db.VarChar(140)
+  templateName   String   @db.VarChar(120)
+  language       String   @default("pt_BR")
+  messagePreview String   @db.Text
+  consentSource  String   @db.VarChar(255)
+  requestId      String   @unique
+  status         String   @default("QUEUED")
+
+createdById String
+createdBy   User @relation("WhatsAppCampaignAuthor", fields: [createdById], references: [id])
+
+  recipients WhatsAppRecipient[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById, createdAt])
+}
+
+model WhatsAppRecipient {
+  id         String @id @default(cuid())
+campaignId String
+campaign   WhatsAppCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  name              String
+  phone             String @db.VarChar(16)
+  personalizedText  String @db.Text
+  status            String @default("PENDING")
+  providerMessageId String? @db.VarChar(255)
+  error             String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([campaignId, phone])
+  @@index([campaignId, status])
 }
